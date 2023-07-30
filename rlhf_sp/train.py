@@ -62,14 +62,6 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     step += 1
   epoch_loss = running_loss / len(data_loader)
   epoch_acc = cal_acc(data_loader, total_num_same, cfg)
-  if cfg.use_wandb:
-    name = "train" if train else "valid"
-    wandb.log({
-        f"{name}_loss": epoch_loss,
-        f"{name}_ppl": np.exp(epoch_loss),
-        f"{name}_acc": epoch_acc,
-        "epoch": epoch,
-    }, step=epoch)
   return epoch_loss, epoch_acc
 
 
@@ -137,6 +129,16 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
         cfg, epoch, train_dl, criterion, net, mask, sched, device=device, train=True)
     valid_loss, valid_acc = run_epoch(
         cfg, epoch, valid_dl, criterion, net, mask, sched, device=device, train=False)
+    if cfg.use_wandb:
+      wandb.log({
+          "train_epoch_loss": train_loss,
+          "train_epoch_ppl": np.exp(train_loss),
+          "train_epoch_acc": train_acc,
+          "valid_epoch_loss": valid_loss,
+          "valid_epoch_ppl": np.exp(valid_loss),
+          "valid_epoch_acc": valid_acc,
+          "epoch": epoch,
+      }, step=(epoch + 1) * len(train_dl))
     valid_losses.append(valid_loss)
     if epoch % 3 == 0 or epoch == cfg.epochs - 1:
       for note in [f"{epoch}", "final"]:
