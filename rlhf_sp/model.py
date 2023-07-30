@@ -134,4 +134,4 @@ class Model(nn.Module):
     return x
   
 def get_num_params(net):
-  return sum(net.numel() for param in net.parameters())
+  return sum(param.numel() for param in net.parameters())
