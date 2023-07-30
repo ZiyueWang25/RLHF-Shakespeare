@@ -56,7 +56,6 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
         lr = optimizer._optimizer.param_groups[0]["lr"]
         wandb.log({
             "train_loss": loss.cpu().item(),
-            "step": step,
             "lr": lr,
         }, step=step)
     step += 1
@@ -140,22 +139,20 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
           "epoch": epoch,
       }, step=(epoch + 1) * len(train_dl))
     valid_losses.append(valid_loss)
-    if epoch % 3 == 0 or epoch == cfg.epochs - 1:
-      for note in [f"{epoch}", "final"]:
-        path = os.path.join(
-            cfg.save_dir, f"{note}_state_dict_model.pt")
-        torch.save({
-            'epoch': epoch,
-            'model_state_dict': net.state_dict(),
-            'optimizer_state_dict': optimizer.state_dict(),
-            'loss': train_loss,
-        }, path)
-        if epoch - 6 >= 0 and note == f"{epoch}":
-          # save space
-          os.remove(os.path.join(cfg.save_dir,
-                    f"{epoch - 6}_state_dict_model.pt"))
-      print(
-          f"epoch {epoch}: train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%}, valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
+    print(f"epoch {epoch}: train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%},\
+           valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
+    for note in [f"{epoch}", "final"]:
+      path = os.path.join(
+          cfg.save_dir, f"{note}_state_dict_model.pt")
+      torch.save({
+          'epoch': epoch,
+          'model_state_dict': net.state_dict(),
+          'optimizer_state_dict': optimizer.state_dict(),
+          'loss': train_loss,
+      }, path)
+      if epoch - 6 >= 0 and note == f"{epoch}":
+        os.remove(os.path.join(cfg.save_dir,
+                               f"{epoch - 6}_state_dict_model.pt"))
     if early_stop(valid_losses):
       print("Early Stopping")
       break
