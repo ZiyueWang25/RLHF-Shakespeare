@@ -143,16 +143,17 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
            valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
     for note in [f"{epoch}", "final"]:
       path = os.path.join(
-          cfg.save_dir, f"{note}_state_dict_model.pt")
+          cfg.save_dir, f"{note}_pretrain.pt")
       torch.save({
           'epoch': epoch,
           'model_state_dict': net.state_dict(),
           'optimizer_state_dict': optimizer.state_dict(),
-          'loss': train_loss,
+          'train_loss': train_loss,
+          'valid_loss': valid_loss,
       }, path)
       if epoch - 6 >= 0 and note == f"{epoch}":
         os.remove(os.path.join(cfg.save_dir,
-                               f"{epoch - 6}_state_dict_model.pt"))
+                               f"{epoch - 6}_pretrain.pt"))
     if early_stop(valid_losses):
       print("Early Stopping")
       break

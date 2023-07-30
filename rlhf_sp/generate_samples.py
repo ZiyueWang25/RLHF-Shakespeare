@@ -1,3 +1,6 @@
+from tqdm import tqdm
+import re
+
 import torch
 from torch.nn import functional as F
 
@@ -26,3 +29,15 @@ def sample(model, x, T=128, gen_size=50, temperature=1.0, greedy=False, top_k=No
       next_ids = torch.multinomial(probs, num_samples=1)
     x = torch.cat((x, next_ids), dim=-1)
   return x
+
+
+def generate_unconditional_samples(tokenizer, net, N, device, **kwargs):
+  context = " "
+  unconditional_samples = []
+  for _ in tqdm(range(N)):
+    x = torch.tensor(tokenizer.encode(re.split(r"\b", context)),
+                     dtype=torch.long)[None, ...].to(device)
+    y = sample(net, x, **kwargs)[0]
+    completion = tokenizer.decode(y)
+    unconditional_samples.append(completion[1:])
+  return unconditional_samples
