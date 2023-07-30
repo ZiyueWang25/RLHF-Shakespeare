@@ -10,3 +10,9 @@ class Config:
   epochs = 50
   label_smoothing = 0.1
   lr = 6e-4
+  use_wandb: bool = False
+  wandb_project_name: str = "RLHF_SP"
+  wandb_entity: str = None
+
+def from_args_to_dict(args):
+  return dict((name, getattr(args, name)) for name in dir(args) if not name.startswith('__'))

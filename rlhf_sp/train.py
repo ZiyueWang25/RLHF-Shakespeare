@@ -6,10 +6,13 @@ import numpy as np
 import torch
 from torch import nn
 from torch import optim
-from torch.nn.utils import clip_grad_norm_
+from torch.nn.utils import clip_grad_norm_ 
 
 from rlhf_sp import model
 from rlhf_sp.config import Config
+from rlhf_sp.config import from_args_to_dict
+
+import wandb
 
 def cal_num_same(outputs, labels):
   return (outputs.argmax(axis=-1) == labels).sum().cpu().item()
@@ -18,7 +21,7 @@ def cal_acc(data_loader, num_same, cfg):
   num_total = len(data_loader) * cfg.B * cfg.T
   return num_same / num_total
 
-def run_epoch(cfg, data_loader, criterion, model, mask, optimizer, device, train=True):
+def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device, train=True):
   if train:
     model.train()
   else:
@@ -26,6 +29,7 @@ def run_epoch(cfg, data_loader, criterion, model, mask, optimizer, device, train
   running_loss = 0
   total_num_same = 0
   pbar = tqdm(enumerate(data_loader), total=len(data_loader))
+  step = epoch * len(data_loader)
   for i, (x, y) in pbar:
     x = x.to(device)
     y = y.to(device)
@@ -45,11 +49,27 @@ def run_epoch(cfg, data_loader, criterion, model, mask, optimizer, device, train
     running_loss += loss.cpu().item()
     if train:
       pbar.set_description(f"iter {i}: train loss {loss.item():.5f}")
-  return running_loss / len(data_loader), cal_acc(data_loader, total_num_same, cfg)
+      if cfg.use_wandb:
+        lr = optimizer.param_groups[0]["lr"]
+        wandb.log({
+        "train_loss": loss.cpu().item(),
+        "step": step,
+        "lr": lr,
+        }, step=step)
+    step += 1
+  epoch_loss = running_loss / len(data_loader)
+  epoch_acc = cal_acc(data_loader, total_num_same, cfg)
+  if cfg.use_wandb:
+    name = "train" if train else "valid"
+    wandb.log({
+    f"{name}_loss": epoch_loss,
+    f"{name}_ppl": np.exp(epoch_loss),
+    f"{name}_acc": epoch_acc,
+    "epoch": epoch,
+    }, step=epoch)
+  return epoch_loss, epoch_acc
 
-def early_stop(valid_losses, valid_accs):
-  if valid_accs[-1] == 1:
-    return True
+def early_stop(valid_losses):
   if len(valid_losses) < 4:
     return False
   for i in range(4):
@@ -96,24 +116,18 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
     optimizer = optim.Adam(net.parameters(), lr=cfg.lr, betas=(0.9, 0.98), eps=1e-9)
     sched = AttentionScheduler(warmup_steps, cfg.d_model, optimizer, lr_mul=lr_mul)
-
-    train_losses = []
-    train_ppls = []
-    train_accs = []
-    lrs = []
+    run_name = "pretrain"
+    if cfg.use_wandb:
+        wandb.init(
+           project=cfg.wandb_project_name,
+           name=run_name,
+           config=from_args_to_dict(cfg)
+           )
     valid_losses = []
-    valid_ppls = []
-    valid_accs = []
     for epoch in range(cfg.epochs):
-        train_loss, train_acc = run_epoch(cfg, train_dl, criterion, net, mask, sched, device=device, train=True)
-        valid_loss, valid_acc = run_epoch(cfg, valid_dl, criterion, net, mask, sched, device=device, train=False)
-        lrs.append(optimizer.param_groups[0]["lr"])
-        train_losses.append(train_loss)
-        train_ppls.append(np.exp(train_loss))
-        train_accs.append(train_acc)
+        train_loss, train_acc = run_epoch(cfg, epoch, train_dl, criterion, net, mask, sched, device=device, train=True)
+        valid_loss, valid_acc = run_epoch(cfg, epoch, valid_dl, criterion, net, mask, sched, device=device, train=False)
         valid_losses.append(valid_loss)
-        valid_ppls.append(np.exp(valid_loss))
-        valid_accs.append(valid_acc)
         if epoch % 3 == 0 or epoch == cfg.epochs - 1:
             for note in [f"{epoch}", "final"]:
                 path = os.path.join(cfg.save_dir, f"{note}_state_dict_model.pt")
@@ -126,8 +140,11 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
                 if epoch - 6 >= 0 and note == f"{epoch}":
                     # save space
                     os.remove(os.path.join(cfg.save_dir, f"{epoch - 6}_state_dict_model.pt"))
-            print(f"epoch {epoch}: lr: {lrs[-1]:.4f} train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%}, valid loss {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
-        if early_stop(valid_losses, valid_accs):
+            print(f"epoch {epoch}: train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%}, valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
+        if early_stop(valid_losses):
             print("Early Stopping")
             break
     print('Finished Training')
+    if cfg.use_wandb:
+      wandb.finish()
+    return net
