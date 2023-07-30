@@ -89,7 +89,8 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
     total_steps = cfg.epochs * len(train_dl)
     warmup_steps = int(total_steps * 0.05)
     lr_mul=0.5
-    net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout, used_learned_pe=False).to(device)
+    net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout,
+                      device=device, used_learned_pe=False).to(device)
     print("# of parameter:", model.get_num_params(net))
     mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
     criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)

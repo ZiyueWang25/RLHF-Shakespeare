@@ -35,7 +35,6 @@ class Tokenizer:
     return [self.token_by_id[i] for i in ids]   
 
 
-
 def read_lines():
     data_link = "https://www.gutenberg.org/files/100/100-0.txt"
     start_mark = "*** START OF THE PROJECT GUTENBERG EBOOK THE COMPLETE WORKS OF WILLIAM SHAKESPEARE ***\r\n"
