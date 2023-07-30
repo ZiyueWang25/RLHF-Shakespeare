@@ -1,9 +1,13 @@
-import urllib
 import re
 
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+import pathlib
+
+
+DATA_PATH = pathlib.Path(
+  __file__).parent.resolve().parent / "data" / "100-0.txt"
 
 
 class ShakeSpeareDataset(Dataset):
@@ -40,21 +44,9 @@ class Tokenizer:
     return "".join(tokens)
 
 
-def read_lines():
-  data_link = "https://www.gutenberg.org/files/100/100-0.txt"
-  start_mark = "*** START OF THE PROJECT GUTENBERG EBOOK THE COMPLETE WORKS OF WILLIAM SHAKESPEARE ***\r\n"
-  end_mark = "*** END OF THE PROJECT GUTENBERG EBOOK THE COMPLETE WORKS OF WILLIAM SHAKESPEARE ***\r\n"
-  lines = [x.decode("UTF-8") for x in urllib.request.urlopen(data_link)]
-  start_loc = lines.index(start_mark)
-  end_loc = lines.index(end_mark)
-  start_loc, end_loc, len(lines)
-  lines_rel = lines[start_loc + 1: end_loc]
-  return lines_rel
-
-
-def get_corpus(lines):
-  corpus = "".join(lines).lower()
+def get_corpus():
   TRAIN_RATIO = .9
+  corpus = open(DATA_PATH, "r", encoding="utf-8-sig").read()
   all_tokens = re.split(r"\b", corpus)
   total_num = len(all_tokens)
   train_corpus = all_tokens[:int(total_num * TRAIN_RATIO)]
@@ -64,13 +56,14 @@ def get_corpus(lines):
 
 def get_tokenizer(train_corpus):
   vocabs = ["[UNKNOWN]"] + sorted(set(train_corpus))
+  print(f"train has {len(train_corpus)} words, {len(vocabs)} unique.")
   id_by_token = dict(zip(vocabs, range(len(vocabs))))
   token_by_id = {v: k for k, v in id_by_token.items()}
   return Tokenizer(id_by_token, token_by_id)
 
 
-def get_dataset(lines, T=128):
-  train_corpus, valid_corpus = get_corpus(lines)
+def get_dataset(T=128):
+  train_corpus, valid_corpus = get_corpus()
   tokenizer = get_tokenizer(train_corpus)
   train_ids = tokenizer.encode(train_corpus)
   valid_ids = tokenizer.encode(valid_corpus)
