@@ -33,7 +33,7 @@ class Tokenizer:
     return [self.id_by_token.get(t, self.id_by_token["[UNKNOWN]"]) for t in tokens]
 
   def decode(self, ids):
-    if isinstance(ids, torch.tensor):
+    if isinstance(ids, torch.Tensor):
       tokens = [self.token_by_id[i.item()] for i in ids]
     else:
       tokens = [self.token_by_id[i] for i in ids]
