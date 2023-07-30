@@ -31,8 +31,7 @@ def sample(model, x, T=128, gen_size=50, temperature=1.0, greedy=False, top_k=No
   return x
 
 
-def generate_unconditional_samples(tokenizer, net, N, device, **kwargs):
-  context = " "
+def generate_unconditional_samples(tokenizer, net, N, device, context=".", **kwargs):
   unconditional_samples = []
   for _ in tqdm(range(N)):
     x = torch.tensor(tokenizer.encode(re.split(r"\b", context)),
