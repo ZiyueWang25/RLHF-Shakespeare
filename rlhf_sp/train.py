@@ -53,7 +53,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     if train:
       pbar.set_description(f"iter {i}: train loss {loss.item():.5f}")
       if cfg.use_wandb:
-        lr = optimizer.param_groups[0]["lr"]
+        lr = optimizer._optimizer.param_groups[0]["lr"]
         wandb.log({
             "train_loss": loss.cpu().item(),
             "step": step,
