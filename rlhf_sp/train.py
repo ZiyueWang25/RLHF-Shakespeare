@@ -8,8 +8,8 @@ from torch import nn
 from torch import optim
 from torch.nn.utils import clip_grad_norm_
 
-import model
-from config import Config
+from rlhf_sp import model
+from rlhf_sp.config import Config
 
 def cal_num_same(outputs, labels):
   return (outputs.argmax(axis=-1) == labels).sum().cpu().item()
