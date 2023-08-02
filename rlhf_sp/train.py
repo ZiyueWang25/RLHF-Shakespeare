@@ -20,11 +20,6 @@ def cal_num_same(outputs, labels):
   return (outputs.argmax(axis=-1) == labels).sum().cpu().item()
 
 
-def cal_acc(data_loader, num_same, num_token):
-  num_total = len(data_loader) * num_token
-  return num_same / num_total
-
-
 def early_stop(valid_losses):
   if len(valid_losses) < 4:
     return False
@@ -71,9 +66,12 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
   total_num_same = 0
   pbar = tqdm(enumerate(data_loader), total=len(data_loader))
   step = epoch * len(data_loader)
+  num_points_per_batch = None
   for i, vals in pbar:
     x = vals[0].to(device)
     y = vals[1].to(device)
+    if num_points_per_batch is None:
+      num_points_per_batch = y.view(-1).shape[0]
     if len(vals) == 3:
       w = vals[2].to(device).view(-1)
     else:
@@ -92,10 +90,14 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
       loss.backward()
       clip_grad_norm_(model.parameters(), 1)
       optimizer.step()
-    total_num_same += cal_num_same(logits, y)
+    num_same = cal_num_same(logits, y)
+    acc = num_same / y.view(-1).shape[0]
+    total_num_same += num_same
+    total_num += y.view(-1).shape[0]
     running_loss += loss.cpu().item()
     if train:
-      pbar.set_description(f"iter {i}: train loss {loss.item():.5f}")
+      pbar.set_description(
+        f"iter {i}: train loss {loss.item():.5f}, accuracy {acc:.2%}")
       if cfg.use_wandb:
         lr = optimizer._optimizer.param_groups[0]["lr"]
         wandb.log({
@@ -104,7 +106,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
         }, step=step)
     step += 1
   epoch_loss = running_loss / len(data_loader)
-  epoch_acc = cal_acc(data_loader, total_num_same, y.view(-1).shape[0])
+  epoch_acc = total_num_same / total_num
   return epoch_loss, epoch_acc
 
 
