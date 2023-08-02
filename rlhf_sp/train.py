@@ -67,16 +67,9 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
   total_num = 0
   pbar = tqdm(enumerate(data_loader), total=len(data_loader))
   step = epoch * len(data_loader)
-  num_points_per_batch = None
   for i, vals in pbar:
     x = vals[0].to(device)
     y = vals[1].to(device)
-    if num_points_per_batch is None:
-      num_points_per_batch = y.view(-1).shape[0]
-    if len(vals) == 3:
-      w = vals[2].to(device).view(-1)
-    else:
-      w = torch.ones(y.shape).to(device).view(-1)
 
     if train:
       optimizer.zero_grad()
@@ -85,8 +78,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     else:
       with torch.no_grad():
         logits = model(x, mask=mask)
-    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1))
-    loss = (loss * w).mean()
+    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1),)
     if train:
       loss.backward()
       clip_grad_norm_(model.parameters(), 1)
@@ -134,7 +126,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
     net = model.RewardModel(cfg, base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
   criterion = nn.CrossEntropyLoss(
-    label_smoothing=cfg.label_smoothing, reduction="none")
+    label_smoothing=cfg.label_smoothing, ignore_index=-100)
   optimizer = optim.Adam(net.parameters(), lr=lr,
                          betas=(0.9, 0.98), eps=1e-9)
   sched = AttentionScheduler(

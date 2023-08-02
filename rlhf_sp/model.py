@@ -158,16 +158,10 @@ class RewardModel(nn.Module):
     super().__init__()
     self.base_model = deepcopy(base_model.to("cpu"))
     self.base_model.linear = nn.Linear(
-      self.base_model.linear.in_features, cfg.reward_emb_size)
-    self.flatten = nn.Flatten()
-    self.final_head = nn.Linear(
-      cfg.reward_emb_size * cfg.reward_T, cfg.reward_num_labels)
+        self.base_model.linear.in_features, cfg.reward_num_labels)
 
   def forward(self, x, mask=None, **kwargs):
-    x = self.base_model(x, mask)
-    x = F.relu(x)
-    x = self.flatten(x)
-    return self.final_head(x)
+    return self.base_model(x, mask)
 
 
 def get_num_params(net):

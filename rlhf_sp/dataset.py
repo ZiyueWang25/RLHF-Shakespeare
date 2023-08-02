@@ -3,6 +3,7 @@ import re
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torch.nn import functional as F
 import pathlib
 
 
@@ -29,28 +30,27 @@ class ShakeSpeareDataset(Dataset):
 
 
 class SentimentDataset(Dataset):
-  def __init__(self, json_dict, tokenizer, T):
-    self.values = list(json_dict.values())
+  def __init__(self, samples, tokenizer, T):
+    self.samples = samples
     self.tokenizer = tokenizer
     self.T = T
+    self.padding_token = self.tokenizer.id_by_token["\n"]
 
   def __len__(self):
-    return len(self.values)
+    return len(self.samples)
 
   def __getitem__(self, idx):
-    value = self.values[idx]
-    text = value["sample"]
-    label = value["sentiment"]["label"]
-    label = 0 if label == "POSITIVE" else 1
-    weight = value["sentiment"]["score"]
-    ids = self.tokenizer.encode(re.split(r"\b", text))[1:]
+    sample = self.samples[idx]
+    text = sample["sample"]
+    label = sample["sentiment"]
+    label = 0 if label == "happy" else 1
+    ids = self.tokenizer.encode(re.split(r"\b", text))
     ids = ids[:self.T]
-    ids = ids + [self.tokenizer.id_by_token[" "]] * (self.T - len(ids))
-
     x = torch.tensor(ids, dtype=torch.long)
-    y = torch.tensor([label], dtype=torch.long)
-    w = torch.tensor([weight], dtype=torch.float)
-    return x, y, w
+    x = F.pad(x, (self.T - x.numel(), 0), "constant", self.padding_token)
+    y = -100 * torch.ones_like(x)
+    y[-1] = 1 if label == "happy" else 0
+    return x, y
 
 
 class Tokenizer:

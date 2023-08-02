@@ -15,9 +15,8 @@ class Config:
 
   reward_T = 50
   reward_num_labels = 2
-  reward_epochs = 10
+  reward_epochs = 20
   reward_lr = 6e-4
-  reward_emb_size = 32
 
 
 def from_args_to_dict(args):
