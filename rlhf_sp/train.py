@@ -104,7 +104,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
         }, step=step)
     step += 1
   epoch_loss = running_loss / len(data_loader)
-  epoch_acc = cal_acc(data_loader, total_num_same, y.view(-1)[0])
+  epoch_acc = cal_acc(data_loader, total_num_same, y.view(-1).shape[0])
   return epoch_loss, epoch_acc
 
 
