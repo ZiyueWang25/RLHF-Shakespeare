@@ -89,7 +89,6 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
       with torch.no_grad():
         logits = model(x, mask=mask, places=p)
     loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1))
-    print(logits.shape, y.shape, w.shape, loss.shape)
     loss = (loss * w).mean()
     if train:
       loss.backward()

@@ -155,12 +155,12 @@ class Model(nn.Module):
 class RewardModel(nn.Module):
   def __init__(self, base_model: nn.Module):
     super().__init__()
-    self.base_model = deepcopy(base_model)
+    self.base_model = deepcopy(base_model.to("cpu"))
 
   def forward(self, x, places, mask=None, **kwargs):
     logits = self.base_model(x, mask)
     logits = logits[torch.arange(x.size(0)), places.view(-1)]
-    return logits[places]
+    return logits
 
 
 def get_num_params(net):
