@@ -39,7 +39,7 @@ class AttentionScheduler:
 
   @property
   def param_groups(self):
-    return self.optimizer.param_groups
+    return self._optimizer.param_groups
 
   def step(self):
     self._update_learning_rate()
