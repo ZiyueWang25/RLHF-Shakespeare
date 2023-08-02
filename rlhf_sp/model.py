@@ -152,6 +152,7 @@ class Model(nn.Module):
 
 class RewardModel(nn.Module):
   def __init__(self, base_model: nn.Module):
+    super().__init__()
     self.base_model = base_model
 
   def forward(self, x, places, mask=None):

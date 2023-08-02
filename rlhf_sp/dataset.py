@@ -28,6 +28,34 @@ class ShakeSpeareDataset(Dataset):
     return x, y
 
 
+class SentimentDataset(Dataset):
+  def __init__(self, json_dict, tokenizer, T):
+    self.values = list(json_dict.values())
+    self.tokenizer = tokenizer
+    self.T = T
+
+  def __len__(self):
+    return len(self.values)
+
+  def __getitem__(self, idx):
+    value = self.values[idx]
+    text = value["sample"]
+    label = value["sentiment"]["label"]
+    label = "happy" if label == "POSITIVE" else "sad"
+    num_label = self.tokenizer.encode([label])
+    weight = value["sentiment"]["score"]
+    text = text + f" {label}"
+    ids = self.tokenizer.encode(re.split(r"\b", text))[1:-1]
+    place = len(ids) - 1
+    ids = ids + [0] * (self.T - len(ids))
+
+    x = torch.tensor(ids, dtype=torch.long)
+    y = torch.tensor(num_label, dtype=torch.long)
+    p = torch.tensor([place], dtype=torch.long)
+    w = torch.tensor([weight], dtype=torch.float)
+    return x, y, p, w
+
+
 class Tokenizer:
   def __init__(self, id_by_token, token_by_id):
     self.id_by_token = id_by_token
