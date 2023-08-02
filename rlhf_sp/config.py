@@ -10,6 +10,7 @@ class Config:
   epochs = 50
   label_smoothing = 0.1
   lr = 6e-4
+  lr_mul = .5
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 
@@ -17,6 +18,7 @@ class Config:
   reward_num_labels = 2
   reward_epochs = 30
   reward_lr = 1e-4
+  reward_lr_mul = None
 
 
 def from_args_to_dict(args):
