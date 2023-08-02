@@ -128,7 +128,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
     net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout,
                       device=device, used_learned_pe=False).to(device)
   else:
-    net = model.RewardModel(base_model).to(device)
+    net = model.RewardModel(cfg, base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
   criterion = nn.CrossEntropyLoss(
     label_smoothing=cfg.label_smoothing, reduction="none")
