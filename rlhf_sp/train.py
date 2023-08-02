@@ -24,52 +24,6 @@ def cal_acc(data_loader, num_same, cfg):
   return num_same / num_total
 
 
-def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device, train=True):
-  if train:
-    model.train()
-  else:
-    model.eval()
-  running_loss = 0
-  total_num_same = 0
-  pbar = tqdm(enumerate(data_loader), total=len(data_loader))
-  step = epoch * len(data_loader)
-  for i, vals in pbar:
-    x = vals[0].to(device)
-    y = vals[1].to(device)
-    if len(vals) == 4:
-      p = vals[2].to(device)
-      w = vals[3].to(device).view(-1)
-    else:
-      p, w = None, None
-
-    if train:
-      optimizer.zero_grad()
-    if train:
-      logits = model(x=x, mask=mask, places=p)
-    else:
-      with torch.no_grad():
-        logits = model(x, mask=mask, places=p)
-    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1), weight=w)
-    if train:
-      loss.backward()
-      clip_grad_norm_(model.parameters(), 1)
-      optimizer.step()
-    total_num_same += cal_num_same(logits, y)
-    running_loss += loss.cpu().item()
-    if train:
-      pbar.set_description(f"iter {i}: train loss {loss.item():.5f}")
-      if cfg.use_wandb:
-        lr = optimizer._optimizer.param_groups[0]["lr"]
-        wandb.log({
-            "train_loss": loss.cpu().item(),
-            "lr": lr,
-        }, step=step)
-    step += 1
-  epoch_loss = running_loss / len(data_loader)
-  epoch_acc = cal_acc(data_loader, total_num_same, cfg)
-  return epoch_loss, epoch_acc
-
-
 def early_stop(valid_losses):
   if len(valid_losses) < 4:
     return False
@@ -107,6 +61,53 @@ class AttentionScheduler:
       param_group['lr'] = lr
 
 
+def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device, train=True):
+  if train:
+    model.train()
+  else:
+    model.eval()
+  running_loss = 0
+  total_num_same = 0
+  pbar = tqdm(enumerate(data_loader), total=len(data_loader))
+  step = epoch * len(data_loader)
+  for i, vals in pbar:
+    x = vals[0].to(device)
+    y = vals[1].to(device)
+    if len(vals) == 4:
+      p = vals[2].to(device)
+      w = vals[3].to(device).view(-1)
+    else:
+      p = None
+      w = torch.ones(y.shape).to(device).view(-1)
+
+    if train:
+      optimizer.zero_grad()
+    if train:
+      logits = model(x=x, mask=mask, places=p)
+    else:
+      with torch.no_grad():
+        logits = model(x, mask=mask, places=p)
+    loss = (criterion(logits.view(-1, logits.size(-1)), y.view(-1)) * w).mean()
+    if train:
+      loss.backward()
+      clip_grad_norm_(model.parameters(), 1)
+      optimizer.step()
+    total_num_same += cal_num_same(logits, y)
+    running_loss += loss.cpu().item()
+    if train:
+      pbar.set_description(f"iter {i}: train loss {loss.item():.5f}")
+      if cfg.use_wandb:
+        lr = optimizer._optimizer.param_groups[0]["lr"]
+        wandb.log({
+            "train_loss": loss.cpu().item(),
+            "lr": lr,
+        }, step=step)
+    step += 1
+  epoch_loss = running_loss / len(data_loader)
+  epoch_acc = cal_acc(data_loader, total_num_same, cfg)
+  return epoch_loss, epoch_acc
+
+
 def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretrain"):
   if stage == "pretrain":
     epochs = cfg.epochs
@@ -127,7 +128,8 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
     net = model.RewardModel(base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
   mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
-  criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
+  criterion = nn.CrossEntropyLoss(
+    label_smoothing=cfg.label_smoothing, reduction=None)
   optimizer = optim.Adam(net.parameters(), lr=cfg.lr,
                          betas=(0.9, 0.98), eps=1e-9)
   sched = AttentionScheduler(
