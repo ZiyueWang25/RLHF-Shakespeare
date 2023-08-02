@@ -17,7 +17,7 @@ os.environ["CUDA_LAUNCH_BLOCKING"] = "1"  # obtain an accurate stack trace
 
 
 def cal_num_same(outputs, labels):
-  return (outputs.argmax(axis=-1).reshape(labels) == labels).sum().cpu().item()
+  return (outputs.argmax(axis=-1).reshape(labels.shape) == labels).sum().cpu().item()
 
 
 def early_stop(valid_losses):
