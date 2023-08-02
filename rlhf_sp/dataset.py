@@ -42,7 +42,7 @@ class SentimentDataset(Dataset):
     label = value["sentiment"]["label"]
     label = 0 if label == "POSITIVE" else 1
     weight = value["sentiment"]["score"]
-    ids = self.tokenizer.encode(re.split(r"\b", text))[1:-1]
+    ids = self.tokenizer.encode(re.split(r"\b", text))[1:]
 
     x = torch.tensor(ids, dtype=torch.long)
     y = torch.tensor([label], dtype=torch.long)
