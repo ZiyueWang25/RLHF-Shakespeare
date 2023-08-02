@@ -163,7 +163,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
                          or early_stop(valid_losses)) else f"{epoch}"
       if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
-        save_model(path, epoch, net, optimizer, train_loss, valid_loss)
+        save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
           os.remove(os.path.join(cfg.save_dir,
                                  f"{epoch - 6}_{stage}.pt"))
@@ -176,11 +176,10 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   return net
 
 
-def save_model(path, epoch, net, optimizer, train_loss, valid_loss):
+def save_model(path, epoch, net, train_loss, valid_loss):
   torch.save({
       'epoch': epoch,
       'model_state_dict': net.state_dict(),
-      'optimizer_state_dict': optimizer.state_dict(),
       'train_loss': train_loss,
       'valid_loss': valid_loss,
   }, path)
