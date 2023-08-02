@@ -13,6 +13,9 @@ class Config:
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 
+  reward_epochs = 10
+  reward_lr = 6e-4
+
 
 def from_args_to_dict(args):
   return dict((name, getattr(args, name)) for name in dir(args) if not name.startswith('__'))

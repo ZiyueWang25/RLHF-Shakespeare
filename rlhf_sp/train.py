@@ -33,9 +33,15 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
   total_num_same = 0
   pbar = tqdm(enumerate(data_loader), total=len(data_loader))
   step = epoch * len(data_loader)
-  for i, (x, y) in pbar:
-    x = x.to(device)
-    y = y.to(device)
+  for i, vals in pbar:
+    x = vals[0].to(device)
+    y = vals[1].to(device)
+    if len(vals) == 4:
+      p = vals[2].to(device).view(-1)
+      w = vals[3].to(device).view(-1)
+    else:
+      p, w = None, None
+
     if train:
       optimizer.zero_grad()
     if train:
@@ -43,7 +49,9 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     else:
       with torch.no_grad():
         logits = model(x, mask)
-    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1))
+    if p is not None:
+      logits = logits[torch.arange(x.size(0)), p]
+    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1), weight=w)
     if train:
       loss.backward()
       clip_grad_norm_(model.parameters(), 1)
@@ -101,12 +109,24 @@ class AttentionScheduler:
       param_group['lr'] = lr
 
 
-def pretrain(cfg: Config, train_dl, valid_dl, device):
-  total_steps = cfg.epochs * len(train_dl)
+def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretrain"):
+  if stage == "pretrain":
+    epochs = cfg.epochs
+    lr = cfg.lr
+    run_name = "pretrain"
+  elif stage == "reward_train":
+    epochs = cfg.reward_epochs
+    lr = cfg.reward_lr
+    run_name = "reward_train"
+
+  total_steps = epochs * len(train_dl)
   warmup_steps = int(total_steps * 0.05)
   lr_mul = 0.5
-  net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout,
-                    device=device, used_learned_pe=False).to(device)
+  if stage == "pretrain":
+    net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout,
+                      device=device, used_learned_pe=False).to(device)
+  else:
+    net = model.RewardModel(base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
   mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
   criterion = nn.CrossEntropyLoss(label_smoothing=cfg.label_smoothing)
@@ -114,7 +134,6 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
                          betas=(0.9, 0.98), eps=1e-9)
   sched = AttentionScheduler(
       warmup_steps, cfg.d_model, optimizer, lr_mul=lr_mul)
-  run_name = "pretrain"
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
@@ -122,7 +141,7 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
         config=from_args_to_dict(cfg)
     )
   valid_losses = []
-  for epoch in range(cfg.epochs):
+  for epoch in range(epochs):
     train_loss, train_acc = run_epoch(
         cfg, epoch, train_dl, criterion, net, mask, sched, device=device, train=True)
     valid_loss, valid_acc = run_epoch(
@@ -141,8 +160,7 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
     print(f"epoch {epoch}: train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%},\
            valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
     for note in [f"{epoch}", "final"]:
-      path = os.path.join(
-          cfg.save_dir, f"{note}_pretrain.pt")
+      path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
       torch.save({
           'epoch': epoch,
           'model_state_dict': net.state_dict(),
@@ -152,7 +170,7 @@ def pretrain(cfg: Config, train_dl, valid_dl, device):
       }, path)
       if epoch - 6 >= 0 and note == f"{epoch}":
         os.remove(os.path.join(cfg.save_dir,
-                               f"{epoch - 6}_pretrain.pt"))
+                               f"{epoch - 6}_{stage}.pt"))
     if early_stop(valid_losses):
       print("Early Stopping")
       break
