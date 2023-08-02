@@ -117,7 +117,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   elif stage == "reward_train":
     epochs = cfg.reward_epochs
     lr = cfg.reward_lr
-    lr_mul = cfg.lr_mul
+    lr_mul = cfg.reward_lr_mul
     mask = model.create_forward_mask(cfg.reward_T, cfg.reward_T).to(device)
 
   total_steps = epochs * len(train_dl)
