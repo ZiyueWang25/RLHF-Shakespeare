@@ -102,7 +102,6 @@ class AttentionScheduler:
 
 
 def pretrain(cfg: Config, train_dl, valid_dl, device):
-  # when using scheduler
   total_steps = cfg.epochs * len(train_dl)
   warmup_steps = int(total_steps * 0.05)
   lr_mul = 0.5

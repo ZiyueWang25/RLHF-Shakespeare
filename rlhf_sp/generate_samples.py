@@ -31,12 +31,12 @@ def sample(model, x, T=128, gen_size=50, temperature=1.0, greedy=False, top_k=No
   return x
 
 
-def generate_unconditional_samples(tokenizer, net, N, device, context=".", **kwargs):
+def generate_unconditional_samples(tokenizer, net, N, device, context=" ", **kwargs):
   unconditional_samples = []
+  x = torch.tensor(tokenizer.encode(re.split(r"\b", context)),
+                   dtype=torch.long)[None, ...].to(device)
   for _ in tqdm(range(N)):
-    x = torch.tensor(tokenizer.encode(re.split(r"\b", context)),
-                     dtype=torch.long)[None, ...].to(device)
-    y = sample(net, x, **kwargs)[0]
+    y = sample(net, x, **kwargs)[0][x.shape[-1]:]
     completion = tokenizer.decode(y)
-    unconditional_samples.append(completion[1:])
+    unconditional_samples.append(completion)
   return unconditional_samples

@@ -150,5 +150,14 @@ class Model(nn.Module):
     return x
 
 
+class RewardModel(nn.Module):
+  def __init__(self, base_model: nn.Module):
+    self.base_model = base_model
+
+  def forward(self, x, places, mask=None):
+    logits = self.base_model(x, mask)
+    return logits[places]
+
+
 def get_num_params(net):
   return sum(param.numel() for param in net.parameters())
