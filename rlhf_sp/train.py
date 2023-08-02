@@ -21,7 +21,7 @@ def cal_num_same(outputs, labels):
 
 
 def early_stop(valid_losses):
-  if len(valid_losses) < 4:
+  if len(valid_losses) < 5:
     return False
   for i in range(4):
     if valid_losses[-i - 1] <= valid_losses[-i - 2]:
@@ -107,21 +107,18 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
   if stage == "pretrain":
     epochs = cfg.epochs
     lr = cfg.lr
-    run_name = "pretrain"
     mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
 
   elif stage == "reward_train":
     epochs = cfg.reward_epochs
     lr = cfg.reward_lr
-    run_name = "reward_train"
     mask = None
 
   total_steps = epochs * len(train_dl)
   warmup_steps = int(total_steps * 0.05)
   lr_mul = 0.5
   if stage == "pretrain":
-    net = model.Model(cfg.vocab_size, cfg.T, cfg.N, cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout,
-                      device=device, used_learned_pe=False).to(device)
+    net = model.Model(cfg, device=device, used_learned_pe=False).to(device)
   else:
     net = model.RewardModel(cfg, base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
@@ -134,7 +131,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
-        name=run_name,
+        name=stage,
         config=from_args_to_dict(cfg)
     )
   valid_losses = []
@@ -154,8 +151,8 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
           "epoch": epoch,
       }, step=(epoch + 1) * len(train_dl))
     valid_losses.append(valid_loss)
-    print(f"epoch {epoch}: train ppl {np.exp(train_loss):.3f} acc {train_acc :.1%},\
-           valid ppl {np.exp(valid_loss):.3f} acc {valid_acc:.1%}")
+    print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
+           valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
     for note in [f"{epoch}", "final"]:
       path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
       torch.save({
