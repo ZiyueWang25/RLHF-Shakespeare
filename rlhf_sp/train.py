@@ -164,7 +164,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
       if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
         save_model(path, epoch, net, optimizer, train_loss, valid_loss)
-        if epoch - 6 >= 0:
+        if (epoch % 3 == 0) and epoch - 6 >= 0:
           os.remove(os.path.join(cfg.save_dir,
                                  f"{epoch - 6}_{stage}.pt"))
     if early_stop(valid_losses):
