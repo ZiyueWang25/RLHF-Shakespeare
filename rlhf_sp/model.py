@@ -158,7 +158,7 @@ class RewardModel(nn.Module):
     super().__init__()
     self.base_model = deepcopy(base_model.to("cpu"))
     self.base_model.linear = nn.Linear(
-      self.base_model.linear.in_feature, cfg.reward_emb_size)
+      self.base_model.linear.in_features, cfg.reward_emb_size)
     self.flatten = nn.Flatten()
     self.final_head = nn.Linear(
       cfg.reward_emb_size * cfg.reward_T, cfg.reward_num_labels)
