@@ -13,6 +13,7 @@ os.environ["ACCELERATE_DISABLE_RICH"] = "1"
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 os.environ["TORCH_USE_CUDA_DSA"] = "TRUE"
+os.environ["CUDA_LAUNCH_BLOCKING"] = "1"  # obtain an accurate stack trace
 
 
 def cal_num_same(outputs, labels):
