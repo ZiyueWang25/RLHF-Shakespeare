@@ -64,6 +64,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     model.eval()
   running_loss = 0
   total_num_same = 0
+  total_num = 0
   pbar = tqdm(enumerate(data_loader), total=len(data_loader))
   step = epoch * len(data_loader)
   num_points_per_batch = None
