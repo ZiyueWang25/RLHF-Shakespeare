@@ -125,17 +125,18 @@ class Decoder(nn.Module):
 
 
 class Model(nn.Module):
-  def __init__(self, vocab_size, T, N, d_model, d_ff, h, dropout, device, used_learned_pe=False):
+  def __init__(self, cfg, device, used_learned_pe=False):
     super().__init__()
-    self.N = N
+    self.cfg = cfg
+    self.N = cfg.N
     self.decoders = nn.ModuleList(
-      [Decoder(d_model, d_ff, h, dropout) for _ in range(N)])
+      [Decoder(cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout) for _ in range(cfg.N)])
     self.used_learned_pe = used_learned_pe
-    self.emb = nn.Embedding(vocab_size, d_model)
-    self.pe = LearnedPE(T, d_model) if used_learned_pe else PE(
-      T, d_model, device)
-    self.dropout = nn.Dropout(p=dropout)
-    self.linear = nn.Linear(d_model, vocab_size, bias=False)
+    self.emb = nn.Embedding(cfg.vocab_size, cfg.d_model)
+    self.pe = LearnedPE(cfg.T, cfg.d_model) if used_learned_pe else PE(
+      cfg.T, cfg.d_model, device)
+    self.dropout = nn.Dropout(p=cfg.dropout)
+    self.linear = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
 
   def forward(self, x, mask=None, **kwargs):
     # x.shape == (B, T)
