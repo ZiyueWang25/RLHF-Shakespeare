@@ -1,18 +1,18 @@
+import wandb
+from rlhf_sp.config import from_args_to_dict
+from rlhf_sp.config import Config
+from rlhf_sp import model
+from torch.nn.utils import clip_grad_norm_
+from torch import optim
+from torch import nn
+import torch
+import numpy as np
 from tqdm import tqdm
 import os
-
-import numpy as np
-
-import torch
-from torch import nn
-from torch import optim
-from torch.nn.utils import clip_grad_norm_
-
-from rlhf_sp import model
-from rlhf_sp.config import Config
-from rlhf_sp.config import from_args_to_dict
-
-import wandb
+os.environ["ACCELERATE_DISABLE_RICH"] = "1"
+os.environ["SDL_VIDEODRIVER"] = "dummy"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ["TORCH_USE_CUDA_DSA"] = "TRUE"
 
 
 def cal_num_same(outputs, labels):
@@ -87,7 +87,9 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     else:
       with torch.no_grad():
         logits = model(x, mask=mask, places=p)
-    loss = (criterion(logits.view(-1, logits.size(-1)), y.view(-1)) * w).mean()
+    loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1))
+    print(logits.shape, y.shape, w.shape, loss.shape)
+    loss = (loss * w).mean()
     if train:
       loss.backward()
       clip_grad_norm_(model.parameters(), 1)

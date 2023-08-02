@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import numpy as np
 
 import torch
@@ -153,7 +155,7 @@ class Model(nn.Module):
 class RewardModel(nn.Module):
   def __init__(self, base_model: nn.Module):
     super().__init__()
-    self.base_model = base_model
+    self.base_model = deepcopy(base_model)
 
   def forward(self, x, places, mask=None, **kwargs):
     logits = self.base_model(x, mask)
