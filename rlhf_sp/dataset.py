@@ -32,6 +32,7 @@ class SentimentDataset(Dataset):
   def __init__(self, json_dict, tokenizer, T):
     self.values = list(json_dict.values())
     self.tokenizer = tokenizer
+    self.T = T
 
   def __len__(self):
     return len(self.values)
@@ -43,6 +44,8 @@ class SentimentDataset(Dataset):
     label = 0 if label == "POSITIVE" else 1
     weight = value["sentiment"]["score"]
     ids = self.tokenizer.encode(re.split(r"\b", text))[1:]
+    ids = ids[:self.T]
+    ids = ids + [self.tokenizer.id_by_token[" "]] * (self.T - len(ids))
 
     x = torch.tensor(ids, dtype=torch.long)
     y = torch.tensor([label], dtype=torch.long)
