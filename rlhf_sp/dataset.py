@@ -32,7 +32,6 @@ class SentimentDataset(Dataset):
   def __init__(self, json_dict, tokenizer, T):
     self.values = list(json_dict.values())
     self.tokenizer = tokenizer
-    self.T = T
 
   def __len__(self):
     return len(self.values)
@@ -41,19 +40,14 @@ class SentimentDataset(Dataset):
     value = self.values[idx]
     text = value["sample"]
     label = value["sentiment"]["label"]
-    label = "happy" if label == "POSITIVE" else "sad"
-    num_label = self.tokenizer.encode([label])
+    label = 0 if label == "POSITIVE" else 1
     weight = value["sentiment"]["score"]
-    text = text + f" {label}"
     ids = self.tokenizer.encode(re.split(r"\b", text))[1:-1]
-    place = len(ids) - 1
-    ids = ids + [0] * (self.T - len(ids))
 
     x = torch.tensor(ids, dtype=torch.long)
-    y = torch.tensor(num_label, dtype=torch.long)
-    p = torch.tensor([place], dtype=torch.long)
+    y = torch.tensor([label], dtype=torch.long)
     w = torch.tensor([weight], dtype=torch.float)
-    return x, y, p, w
+    return x, y, w
 
 
 class Tokenizer:

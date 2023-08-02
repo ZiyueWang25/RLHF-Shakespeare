@@ -74,20 +74,18 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
   for i, vals in pbar:
     x = vals[0].to(device)
     y = vals[1].to(device)
-    if len(vals) == 4:
-      p = vals[2].to(device)
-      w = vals[3].to(device).view(-1)
+    if len(vals) == 3:
+      w = vals[2].to(device).view(-1)
     else:
-      p = None
       w = torch.ones(y.shape).to(device).view(-1)
 
     if train:
       optimizer.zero_grad()
     if train:
-      logits = model(x=x, mask=mask, places=p)
+      logits = model(x=x, mask=mask)
     else:
       with torch.no_grad():
-        logits = model(x, mask=mask, places=p)
+        logits = model(x, mask=mask)
     loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1))
     loss = (loss * w).mean()
     if train:
@@ -115,10 +113,13 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
     epochs = cfg.epochs
     lr = cfg.lr
     run_name = "pretrain"
+    mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
+
   elif stage == "reward_train":
     epochs = cfg.reward_epochs
     lr = cfg.reward_lr
     run_name = "reward_train"
+    mask = None
 
   total_steps = epochs * len(train_dl)
   warmup_steps = int(total_steps * 0.05)
@@ -129,10 +130,9 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
   else:
     net = model.RewardModel(base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
-  mask = model.create_forward_mask(cfg.T, cfg.T).to(device)
   criterion = nn.CrossEntropyLoss(
     label_smoothing=cfg.label_smoothing, reduction="none")
-  optimizer = optim.Adam(net.parameters(), lr=cfg.lr,
+  optimizer = optim.Adam(net.parameters(), lr=lr,
                          betas=(0.9, 0.98), eps=1e-9)
   sched = AttentionScheduler(
       warmup_steps, cfg.d_model, optimizer, lr_mul=lr_mul)

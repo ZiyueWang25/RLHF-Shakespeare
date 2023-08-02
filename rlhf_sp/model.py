@@ -153,14 +153,20 @@ class Model(nn.Module):
 
 
 class RewardModel(nn.Module):
-  def __init__(self, base_model: nn.Module):
+  def __init__(self, cfg, base_model: nn.Module):
     super().__init__()
     self.base_model = deepcopy(base_model.to("cpu"))
+    self.base_model.linear = nn.Linear(
+      self.base_model.linear.in_feature, cfg.reward_emb_size)
+    self.flatten = nn.Flatten()
+    self.final_head = nn.Linear(
+      cfg.reward_emb_size * cfg.reward_T, cfg.reward_num_labels)
 
-  def forward(self, x, places, mask=None, **kwargs):
-    logits = self.base_model(x, mask)
-    logits = logits[torch.arange(x.size(0)), places.view(-1)]
-    return logits
+  def forward(self, x, mask=None, **kwargs):
+    x = self.base_model(x, mask)
+    x = F.relu(x)
+    x = self.flatten(x)
+    return self.final_head(x)
 
 
 def get_num_params(net):
