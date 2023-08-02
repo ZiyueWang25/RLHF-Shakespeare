@@ -20,8 +20,8 @@ def cal_num_same(outputs, labels):
   return (outputs.argmax(axis=-1) == labels).sum().cpu().item()
 
 
-def cal_acc(data_loader, num_same, cfg):
-  num_total = len(data_loader) * cfg.B * cfg.T
+def cal_acc(data_loader, num_same, num_token):
+  num_total = len(data_loader) * num_token
   return num_same / num_total
 
 
@@ -104,7 +104,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
         }, step=step)
     step += 1
   epoch_loss = running_loss / len(data_loader)
-  epoch_acc = cal_acc(data_loader, total_num_same, cfg)
+  epoch_acc = cal_acc(data_loader, total_num_same, y.view(-1)[0])
   return epoch_loss, epoch_acc
 
 
