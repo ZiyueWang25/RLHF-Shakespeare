@@ -48,8 +48,7 @@ class SentimentDataset(Dataset):
     ids = ids[:self.T]
     x = torch.tensor(ids, dtype=torch.long)
     x = F.pad(x, (self.T - x.numel(), 0), "constant", self.padding_token)
-    y = -100 * torch.ones_like(x)
-    y[-1] = 1 if label == "happy" else 0
+    y = torch.tensor([label], dtype=torch.long)
     return x, y
 
 

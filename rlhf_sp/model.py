@@ -161,7 +161,7 @@ class RewardModel(nn.Module):
         self.base_model.linear.in_features, cfg.reward_num_labels)
 
   def forward(self, x, mask=None, **kwargs):
-    return self.base_model(x, mask)
+    return self.base_model(x, mask)[:, -1]
 
 
 def get_num_params(net):
