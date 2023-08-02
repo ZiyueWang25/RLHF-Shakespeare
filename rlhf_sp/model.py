@@ -135,7 +135,7 @@ class Model(nn.Module):
     self.dropout = nn.Dropout(p=dropout)
     self.linear = nn.Linear(d_model, vocab_size, bias=False)
 
-  def forward(self, x, mask=None):
+  def forward(self, x, mask=None, **kwargs):
     # x.shape == (B, T)
     B, T = x.shape
     if self.used_learned_pe:
@@ -155,8 +155,9 @@ class RewardModel(nn.Module):
     super().__init__()
     self.base_model = base_model
 
-  def forward(self, x, places, mask=None):
+  def forward(self, x, places, mask=None, **kwargs):
     logits = self.base_model(x, mask)
+    logits = logits[torch.arange(x.size(0)), places.view(-1)]
     return logits[places]
 
 

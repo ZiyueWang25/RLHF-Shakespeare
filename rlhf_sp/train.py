@@ -37,7 +37,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     x = vals[0].to(device)
     y = vals[1].to(device)
     if len(vals) == 4:
-      p = vals[2].to(device).view(-1)
+      p = vals[2].to(device)
       w = vals[3].to(device).view(-1)
     else:
       p, w = None, None
@@ -45,12 +45,10 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     if train:
       optimizer.zero_grad()
     if train:
-      logits = model(x, mask)
+      logits = model(x=x, mask=mask, places=p)
     else:
       with torch.no_grad():
-        logits = model(x, mask)
-    if p is not None:
-      logits = logits[torch.arange(x.size(0)), p]
+        logits = model(x, mask=mask, places=p)
     loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1), weight=w)
     if train:
       loss.backward()
