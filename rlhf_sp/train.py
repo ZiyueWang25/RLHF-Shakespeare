@@ -103,7 +103,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
   return epoch_loss, epoch_acc
 
 
-def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretrain"):
+def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, stage="pretrain"):
   if stage == "pretrain":
     epochs = cfg.epochs
     lr = cfg.lr
@@ -127,7 +127,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
   optimizer = optim.Adam(net.parameters(), lr=lr,
                          betas=(0.9, 0.98), eps=1e-9)
   sched = AttentionScheduler(
-      warmup_steps, cfg.d_model, optimizer, lr_mul=lr_mul)
+      warmup_steps, cfg.d_model, optimizer, lr_mul=lr)
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
@@ -153,18 +153,13 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
     valid_losses.append(valid_loss)
     print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
            valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
-    for note in [f"{epoch}", "final"]:
-      path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
-      torch.save({
-          'epoch': epoch,
-          'model_state_dict': net.state_dict(),
-          'optimizer_state_dict': optimizer.state_dict(),
-          'train_loss': train_loss,
-          'valid_loss': valid_loss,
-      }, path)
-      if epoch - 6 >= 0 and note == f"{epoch}":
-        os.remove(os.path.join(cfg.save_dir,
-                               f"{epoch - 6}_{stage}.pt"))
+    if save:
+      for note in [f"{epoch}", "final"]:
+        path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
+        save_model(path, epoch, net, optimizer, train_loss, valid_loss)
+        if epoch - 6 >= 0 and note == f"{epoch}":
+          os.remove(os.path.join(cfg.save_dir,
+                                 f"{epoch - 6}_{stage}.pt"))
     if early_stop(valid_losses):
       print("Early Stopping")
       break
@@ -172,3 +167,14 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, stage="pretr
   if cfg.use_wandb:
     wandb.finish()
   return net
+
+
+def save_model(path, epoch, net, optimizer, train_loss, valid_loss):
+  torch.save({
+      'epoch': epoch,
+      'model_state_dict': net.state_dict(),
+      'optimizer_state_dict': optimizer.state_dict(),
+      'train_loss': train_loss,
+      'valid_loss': valid_loss,
+  }, path)
+  return
