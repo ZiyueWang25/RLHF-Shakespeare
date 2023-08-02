@@ -29,34 +29,6 @@ def early_stop(valid_losses):
   return True
 
 
-class AttentionScheduler:
-  def __init__(self, warmup_steps, d_model, optimizer, lr_mul: float = 1):
-    self._optimizer = optimizer
-    self.lr_mul = lr_mul
-    self.d_model = d_model
-    self.warmup_steps = warmup_steps
-    self.n_steps = 0
-
-  def step(self):
-    self._update_learning_rate()
-    self._optimizer.step()
-
-  def zero_grad(self):
-    self._optimizer.zero_grad()
-
-  def _get_lr_scale(self):
-    d_model = self.d_model
-    n_steps, warmup_steps = self.n_steps, self.warmup_steps
-    return (d_model ** -0.5) * min(n_steps ** (-0.5), n_steps * warmup_steps ** (-1.5))
-
-  def _update_learning_rate(self):
-    self.n_steps += 1
-    lr = self.lr_mul * self._get_lr_scale()
-
-    for param_group in self._optimizer.param_groups:
-      param_group['lr'] = lr
-
-
 def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device, train=True):
   if train:
     model.train()
@@ -92,7 +64,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
       pbar.set_description(
         f"iter {i}: train loss {loss.item():.5f}, accuracy {acc:.2%}")
       if cfg.use_wandb:
-        lr = optimizer._optimizer.param_groups[0]["lr"]
+        lr = optimizer.param_groups[0]["lr"]
         wandb.log({
             "train_loss": loss.cpu().item(),
             "lr": lr,
@@ -116,7 +88,6 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
 
   total_steps = epochs * len(train_dl)
   warmup_steps = int(total_steps * 0.05)
-  lr_mul = 0.5
   if stage == "pretrain":
     net = model.Model(cfg, device=device, used_learned_pe=False).to(device)
   else:
@@ -126,8 +97,6 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
     label_smoothing=cfg.label_smoothing, ignore_index=-100)
   optimizer = optim.Adam(net.parameters(), lr=lr,
                          betas=(0.9, 0.98), eps=1e-9)
-  sched = AttentionScheduler(
-      warmup_steps, cfg.d_model, optimizer, lr_mul=lr)
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
@@ -137,9 +106,9 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   valid_losses = []
   for epoch in range(epochs):
     train_loss, train_acc = run_epoch(
-        cfg, epoch, train_dl, criterion, net, mask, sched, device=device, train=True)
+        cfg, epoch, train_dl, criterion, net, mask, optimizer, device=device, train=True)
     valid_loss, valid_acc = run_epoch(
-        cfg, epoch, valid_dl, criterion, net, mask, sched, device=device, train=False)
+        cfg, epoch, valid_dl, criterion, net, mask, optimizer, device=device, train=False)
     if cfg.use_wandb:
       wandb.log({
           "train_epoch_loss": train_loss,
@@ -154,10 +123,12 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
     print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
            valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
     if save:
-      for note in [f"{epoch}", "final"]:
+      note = "final" if ((epoch == epochs - 1)
+                         or early_stop(valid_losses)) else f"{epoch}"
+      if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
         save_model(path, epoch, net, optimizer, train_loss, valid_loss)
-        if epoch - 6 >= 0 and note == f"{epoch}":
+        if epoch - 6 >= 0:
           os.remove(os.path.join(cfg.save_dir,
                                  f"{epoch - 6}_{stage}.pt"))
     if early_stop(valid_losses):

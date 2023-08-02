@@ -13,10 +13,10 @@ class Config:
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 
-  reward_T = 50
+  reward_T = 64
   reward_num_labels = 2
-  reward_epochs = 20
-  reward_lr = 6e-4
+  reward_epochs = 30
+  reward_lr = 1e-4
 
 
 def from_args_to_dict(args):
