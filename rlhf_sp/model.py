@@ -189,19 +189,19 @@ class PPOAgent(nn.Module):
     self.device = device
 
     # Get actor and critic networks
-    self.original_actor = net
     self.actor = copy.deepcopy(net.to("cpu")).to(device)
-    self.critic = reward_net
+    self.original_actor = net.to(device)
+    self.critic = reward_net.to(device)
 
     self.mask = create_forward_mask(cfg.PPO_T, cfg.PPO_T).to(device)
-    self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n"))[1:],
-                                dtype=torch.long)[None, ...].to(device).repeat(cfg.reward_B, 1)
+    self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
+                                dtype=torch.long)[None, ...].to(device).repeat(cfg.PPO_B, 1)
 
     self._set_eval()
 
   def _set_eval(self):
-    self.original.eval()
-    for param in self.original.parameters():
+    self.original_actor.eval()
+    for param in self.original_actor.parameters():
       param.requires_grad = False
     self.critic.eval()
     for param in self.critic.parameters():
@@ -216,17 +216,25 @@ class PPOAgent(nn.Module):
       reward_logits = self.critic(samples)
       original_actor_logits = self.original_actor(samples)
 
-    tokens_per_sec = self.cfg.reward_B * \
+    time_total = (time.time() - t_start)
+    tokens_per_sec = self.cfg.PPO_B * \
         self.cfg.PPO_T / (time.time() - t_start)
+    reward = get_reward(reward_logits, self.cfg.PPO_T)
+    log_d = dict(
+        tokens_per_sec=tokens_per_sec,
+        avg_reward=reward.mean().item(),
+        rollout_time=time_total,
+      )
+    # TODO: only cfg.PPO_B effective data points, is it enough?
+    reward_normalized = (reward - reward.mean()) / reward.std()
     if self.cfg.use_wandb:
-      wandb.log(dict(
-          tokens_per_sec=tokens_per_sec,
-      ), step=self.steps)
+      wandb.log(log_d, step=self.steps)
     self.steps += 1
     info = {"obs": samples,
             "actions": acts,
-            "reward": get_reward(reward_logits, self.cfg.PPO_T),
+            "reward": reward_normalized,
             "original_logprobs": get_logprobs(original_actor_logits, acts),
+            "log": log_d,
             }
     return info
 
@@ -234,9 +242,9 @@ class PPOAgent(nn.Module):
 def get_reward(logits, T):
   # B, 2 -> B, T
   probs = logits.softmax(dim=-1)
-  prob_pos = probs[:, 0]
+  prob_pos = probs[:, 0][:, None]
   ret = torch.log(prob_pos)
-  return ret.repeat(1, T)
+  return ret.repeat(1, T + 1)
 
 
 def get_logprobs(logits, acts):
