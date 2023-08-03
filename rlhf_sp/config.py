@@ -17,8 +17,12 @@ class Config:
   reward_T = 64
   reward_num_labels = 2
   reward_epochs = 30
-  reward_lr = 1e-4
+  reward_lr = 5e-5
   reward_lr_mul = None
+
+  PPO_B = 64
+  PPO_T = 64
+  PPO_beta = 0.2
 
 
 def from_args_to_dict(args):

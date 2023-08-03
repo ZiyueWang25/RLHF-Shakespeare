@@ -1,3 +1,8 @@
+import re
+from torch.distributions.categorical import Categorical
+from typing import List
+import copy
+import time
 from copy import deepcopy
 
 import numpy as np
@@ -5,6 +10,13 @@ import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
+import wandb
+
+from rlhf_sp.generate_samples import sample
+
+
+def get_num_params(net):
+  return sum(param.numel() for param in net.parameters())
 
 
 class PE(nn.Module):
@@ -164,5 +176,68 @@ class RewardModel(nn.Module):
     return self.base_model(x, mask)[:, -1]
 
 
-def get_num_params(net):
-  return sum(param.numel() for param in net.parameters())
+class PPOAgent(nn.Module):
+  critic: nn.Module
+  actor: nn.Module
+
+  def __init__(self, cfg, net, reward_net, tokenizer, device):
+    super().__init__()
+    self.cfg = cfg
+
+    # Keep track of global number of steps taken by agent
+    self.steps = 0
+    self.device = device
+
+    # Get actor and critic networks
+    self.original_actor = net
+    self.actor = copy.deepcopy(net.to("cpu")).to(device)
+    self.critic = reward_net
+
+    self.mask = create_forward_mask(cfg.PPO_T, cfg.PPO_T).to(device)
+    self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n"))[1:],
+                                dtype=torch.long)[None, ...].to(device).repeat(cfg.reward_B, 1)
+
+    self._set_eval()
+
+  def _set_eval(self):
+    self.original.eval()
+    for param in self.original.parameters():
+      param.requires_grad = False
+    self.critic.eval()
+    for param in self.critic.parameters():
+      param.requires_grad = False
+
+  def step(self) -> List[dict]:
+    t_start = time.time()
+    with torch.inference_mode():
+      acts = sample(self.actor, self.start_x, T=self.cfg.PPO_T,
+                    gen_size=self.cfg.PPO_T, temperature=2.0, greedy=False, top_k=2)
+      samples = torch.cat((self.start_x, acts[:, :-1]), dim=1)
+      reward_logits = self.critic(samples)
+      original_actor_logits = self.original_actor(samples)
+
+    tokens_per_sec = self.cfg.reward_B * \
+        self.cfg.PPO_T / (time.time() - t_start)
+    if self.cfg.use_wandb:
+      wandb.log(dict(
+          tokens_per_sec=tokens_per_sec,
+      ), step=self.steps)
+    self.steps += 1
+    info = {"obs": samples,
+            "actions": acts,
+            "reward": get_reward(reward_logits, self.cfg.PPO_T),
+            "original_logprobs": get_logprobs(original_actor_logits, acts),
+            }
+    return info
+
+
+def get_reward(logits, T):
+  # B, 2 -> B, T
+  probs = logits.softmax(dim=-1)
+  prob_pos = probs[:, 0]
+  ret = torch.log(prob_pos)
+  return ret.repeat(1, T)
+
+
+def get_logprobs(logits, acts):
+  return Categorical(logits=logits).log_prob(acts)
