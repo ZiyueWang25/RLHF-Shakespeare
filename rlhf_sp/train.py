@@ -267,7 +267,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
   net.actor.train()
   for epoch in range(epochs):
     train_loss = run_ppo_epoch(
-      cfg, epoch, net, mask, optimizer, train=True)
+      cfg, epoch, net, mask, optimizer)
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       if epoch or note == "final":
