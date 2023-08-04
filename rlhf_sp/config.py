@@ -26,7 +26,7 @@ class Config:
   ppo_epochs = 10
   ppo_lr = 5e-5
   ppo_lr_mul = None
-  ppo_batchs_per_epoch = 1
+  ppo_batchs_per_epoch = 10
   ppo_clip_coef = .2
   ppo_eps = 1e-8
 

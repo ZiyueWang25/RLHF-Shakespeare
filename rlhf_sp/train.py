@@ -178,12 +178,12 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   return net
 
 
-def compute_ppo_loss(step, cfg, net: model.PPOAgent,
+def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
                      batch: Sequence[model.ReplayBufferSamples]) -> torch.Tensor:
   '''Handles learning phase for a single batch. Returns loss function to be minized.'''
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
   original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
-  logits = net(obs)
+  logits = net(obs, mask)
   # calc_clipped_surrogate_objective
   logprobs = model.get_logprobs(logits, actions)
   logratio = logprobs - curr_logprobs
@@ -219,7 +219,7 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent,
   return total_loss_function
 
 
-def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, device, train=True):
+def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, train=True):
   if train:
     net.train()
   else:
@@ -232,7 +232,7 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, device, trai
   for i, batch in pbar:
     if train:
       optimizer.zero_grad()
-    loss = compute_ppo_loss(step, cfg, net, batch)
+    loss = compute_ppo_loss(step, cfg, net, mask, batch)
     if train:
       loss.backward()
       clip_grad_norm_(net.parameters(), 1)
@@ -274,9 +274,9 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
   valid_losses = []
   for epoch in range(epochs):
     train_loss = run_ppo_epoch(
-      cfg, epoch, net, mask, optimizer, device, train=True)
+      cfg, epoch, net, mask, optimizer, train=True)
     valid_loss = run_ppo_epoch(
-      cfg, epoch, net, mask, optimizer, device, train=False)
+      cfg, epoch, net, mask, optimizer, train=False)
     if cfg.use_wandb:
       wandb.log({
           "train_epoch_loss": train_loss,

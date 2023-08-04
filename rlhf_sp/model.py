@@ -248,6 +248,9 @@ class PPOAgent(nn.Module):
     for param in self.critic.parameters():
       param.requires_grad = False
 
+  def forward(self, x, mask=None, **kwargs):
+    return self.actor(x, mask)
+
   def step(self):
     t_start = time.time()
     with torch.inference_mode():
