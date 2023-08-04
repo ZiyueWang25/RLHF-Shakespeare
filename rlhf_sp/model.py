@@ -302,7 +302,7 @@ def get_reward(logits, T):
   probs = logits.softmax(dim=-1)
   prob_pos = probs[:, 0][:, None]
   ret = torch.log(prob_pos)
-  return ret.repeat(1, T + 1)
+  return ret.repeat(1, T)
 
 
 def get_logprobs(logits, acts):
