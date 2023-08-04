@@ -219,37 +219,30 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   return total_loss_function
 
 
-def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, train=True):
-  if train:
-    net.actor.train()
-  else:
-    net.actor.eval()
+def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
   running_loss = 0
   net.rollout_phase()
   batches = net.get_batches()
   pbar = tqdm(enumerate(batches), total=len(batches))
   step = epoch * len(batches)
   for i, batch in pbar:
-    if train:
-      optimizer.zero_grad()
+    optimizer.zero_grad()
     loss = compute_ppo_loss(step, cfg, net, mask, batch)
-    if train:
-      loss.backward()
-      clip_grad_norm_(net.parameters(), 1)
-      optimizer.step()
+    loss.backward()
+    clip_grad_norm_(net.parameters(), 1)
+    optimizer.step()
     running_loss += loss.cpu().item()
-    if train:
-      pbar.set_description(
-        f"iter {i}: train loss {loss.item():.5f}")
-      if cfg.use_wandb:
-        lr = optimizer.param_groups[0]["lr"]
-        wandb.log({
-            "train_loss": loss.cpu().item(),
-            "lr": lr,
-        }, step=step)
+    pbar.set_description(
+      f"iter {i}: train loss {loss.item():.5f}")
+    if cfg.use_wandb:
+      lr = optimizer.param_groups[0]["lr"]
+      wandb.log({
+          "train_loss": loss.cpu().item(),
+          "lr": lr,
+      }, step=step)
     step += 1
   epoch_loss = running_loss / cfg.ppo_batchs_per_epoch
-  return epoch_loss
+  return epoch_loss, batches
 
 
 def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
@@ -271,33 +264,15 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
         name=stage,
         config=from_args_to_dict(cfg)
     )
-  valid_losses = []
+  net.actor.train()
   for epoch in range(epochs):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer, train=True)
-    valid_loss = run_ppo_epoch(
-      cfg, epoch, net, mask, optimizer, train=False)
-    if cfg.use_wandb:
-      wandb.log({
-          "train_epoch_loss": train_loss,
-          "valid_epoch_loss": valid_loss,
-          "epoch": epoch,
-      }, step=(epoch + 1) * cfg.ppo_batchs_per_epoch)
-    valid_losses.append(valid_loss)
-    print(f"epoch {epoch}: train loss {train_loss:.3f},\
-           valid losss {valid_loss:.3f}")
     if save:
-      note = "final" if ((epoch == epochs - 1)
-                         or early_stop(valid_losses)) else f"{epoch}"
-      if (epoch % 3 == 0) or note == "final":
+      note = "final" if (epoch == epochs - 1) else f"{epoch}"
+      if epoch or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
-        save_model(path, epoch, net, train_loss, valid_loss)
-        if (epoch % 3 == 0) and epoch - 6 >= 0:
-          os.remove(os.path.join(cfg.save_dir,
-                                 f"{epoch - 6}_{stage}.pt"))
-    if early_stop(valid_losses):
-      print("Early Stopping")
-      break
+        save_model(path, epoch, net, train_loss, 0.0)
   print('Finished Training')
   if cfg.use_wandb:
     wandb.finish()
