@@ -197,7 +197,7 @@ class ReplayBuffer:
     self.experiences = []
 
   def add(self, obs, actions, rewards, original_logprobs, curr_logprobs) -> None:
-    assert obs.shape == (self.B, self.T + 1), obs.shape
+    assert obs.shape == (self.B, self.T), obs.shape
     assert obs.shape == actions.shape
     assert obs.shape == rewards.shape
     assert obs.shape == original_logprobs.shape
