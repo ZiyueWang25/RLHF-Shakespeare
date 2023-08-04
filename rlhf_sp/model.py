@@ -238,9 +238,9 @@ class PPOAgent(nn.Module):
     self.rb = ReplayBuffer(cfg.ppo_B, cfg.ppo_T)
     print(f"start_x.shape {self.start_x.shape}")
 
-    self._set_eval()
+    self._set_grad()
 
-  def _set_eval(self):
+  def _set_grad(self):
     self.actor.train()
     for param in self.actor.parameters():
       param.requires_grad = True
@@ -248,6 +248,7 @@ class PPOAgent(nn.Module):
     self.original_actor.eval()
     for param in self.original_actor.parameters():
       param.requires_grad = False
+
     self.critic.eval()
     for param in self.critic.parameters():
       param.requires_grad = False

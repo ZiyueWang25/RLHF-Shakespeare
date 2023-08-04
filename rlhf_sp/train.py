@@ -221,9 +221,9 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
 
 def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, train=True):
   if train:
-    net.train()
+    net.actor.train()
   else:
-    net.eval()
+    net.actor.eval()
   running_loss = 0
   net.rollout_phase()
   batches = net.get_batches()
