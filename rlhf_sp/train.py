@@ -163,7 +163,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
     if save:
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"
-      if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
+      if (epoch % 3 == 0) or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
         save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
@@ -257,7 +257,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
   epochs = cfg.ppo_epochs
   lr = cfg.ppo_lr
   lr_mul = cfg.ppo_lr_mul
-  mask = model.create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
+  mask = model.create_forward_mask(cfg.ppo_T, cfg.ppo_T + 1).to(device)
   net = model.PPOAgent(cfg, base_net, reward_net, tokenizer, device)
   optimizer = optim.Adam(net.parameters(), lr=lr,
                          betas=(0.9, 0.98), eps=1e-9)
@@ -289,7 +289,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
     if save:
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"
-      if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
+      if (epoch % 3 == 0) or note == "final":
         path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
         save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
