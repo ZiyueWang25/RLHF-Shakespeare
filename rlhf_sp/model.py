@@ -232,7 +232,6 @@ class PPOAgent(nn.Module):
     self.original_actor = net.to(device)
     self.critic = reward_net.to(device)
 
-    self.mask = create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
     self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
                                 dtype=torch.long)[None, ...].to(device).repeat(cfg.ppo_B, 1)
     self.rb = ReplayBuffer(cfg.ppo_B, cfg.ppo_T)
@@ -261,7 +260,8 @@ class PPOAgent(nn.Module):
     with torch.inference_mode():
       acts = sample(self.actor, self.start_x, T=self.cfg.ppo_T,
                     gen_size=self.cfg.ppo_T, temperature=2.0, greedy=False, top_k=2)
-      samples = torch.cat((self.start_x, acts[:, :-1]), dim=1)
+      samples = acts[:, :-1]
+      acts = acts[:, 1:]
       reward_logits = self.critic(samples)
       curr_actor_logits = self.actor(samples)
       original_actor_logits = self.original_actor(samples)
