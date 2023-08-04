@@ -207,6 +207,7 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
     clipfrac = ((ratio - 1.0).abs() > cfg.ppo_clip_coef).float().mean().item()
 
   if cfg.use_wandb:
+    wandb.log(batch.log_d, step=step)
     wandb.log(dict(
       ratio=ratio.mean().item(),
       clipped_surrogate_objective=clipped_surrogate_objective.item(),

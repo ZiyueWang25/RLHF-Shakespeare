@@ -188,6 +188,7 @@ class ReplayBufferSamples:
   rewards: Float[Tensor, "minibatch_size * obs_shape"]
   original_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
   curr_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
+  log_d: dict
 
 
 class ReplayBuffer:
@@ -196,7 +197,7 @@ class ReplayBuffer:
     self.T = T
     self.experiences = []
 
-  def add(self, obs, actions, rewards, original_logprobs, curr_logprobs) -> None:
+  def add(self, obs, actions, rewards, original_logprobs, curr_logprobs, log_d) -> None:
     assert obs.shape == (self.B, self.T), obs.shape
     assert obs.shape == actions.shape
     assert obs.shape == rewards.shape
@@ -206,7 +207,7 @@ class ReplayBuffer:
     new_experiences_as_tensors = [
       torch.from_numpy(d) if isinstance(d, np.ndarray) else d.clone()
       for d in (obs, actions, rewards, original_logprobs, curr_logprobs)
-    ]
+    ] + [log_d]
     self.experiences.append(ReplayBufferSamples(*new_experiences_as_tensors))
 
   def get_batches(self) -> List[ReplayBufferSamples]:
@@ -275,12 +276,10 @@ class PPOAgent(nn.Module):
         avg_reward=rewards.mean().item(),
         rollout_time=time_total,
       )
-    if self.cfg.use_wandb:
-      wandb.log(log_d, step=self.steps)
     self.steps += 1
     original_logprobs = get_logprobs(original_actor_logits, acts)
     curr_logprobs = get_logprobs(curr_actor_logits, acts)
-    self.rb.add(samples, acts, rewards, original_logprobs, curr_logprobs)
+    self.rb.add(samples, acts, rewards, original_logprobs, curr_logprobs, log_d)
     return
 
   def rollout_phase(self):
