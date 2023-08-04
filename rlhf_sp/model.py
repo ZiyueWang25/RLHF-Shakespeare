@@ -185,9 +185,9 @@ class ReplayBufferSamples:
   '''
   obs: Float[Tensor, "minibatch_size * obs_shape"]
   actions: Int[Tensor, "minibatch_size * obs_shape"]
+  rewards: Float[Tensor, "minibatch_size * obs_shape"]
   original_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
   curr_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
-  rewards: Float[Tensor, "minibatch_size * obs_shape"]
 
 
 class ReplayBuffer:
@@ -205,7 +205,7 @@ class ReplayBuffer:
 
     new_experiences_as_tensors = [
       torch.from_numpy(d) if isinstance(d, np.ndarray) else d
-      for d in (obs, actions, original_logprobs, curr_logprobs, rewards)
+      for d in (obs, actions, rewards, original_logprobs, curr_logprobs)
     ]
     self.experiences.append(ReplayBufferSamples(*new_experiences_as_tensors))
 
@@ -234,7 +234,7 @@ class PPOAgent(nn.Module):
 
     self.mask = create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
     self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
-                                dtype=torch.long)[None, ...].to(device).repeat(cfg.PPO_B, 1)
+                                dtype=torch.long)[None, ...].to(device).repeat(cfg.ppo_B, 1)
     self.rb = ReplayBuffer(cfg.ppo_B, cfg.ppo_T)
     print(f"start_x.shape {self.start_x.shape}")
 
@@ -274,6 +274,19 @@ class PPOAgent(nn.Module):
     curr_logprobs = get_logprobs(curr_actor_logits, acts)
     self.rb.add(samples, acts, rewards, original_logprobs, curr_logprobs)
     return
+
+  def rollout_phase(self):
+    for _ in range(self.cfg.ppo_batchs_per_epoch):
+      self.step()
+
+  def get_batches(self):
+    # normalize rewards
+    batches = self.rb.get_batches()
+    all_rewards = torch.cat(tuple(b.rewards for b in batches))
+    m, s = all_rewards.mean(), all_rewards.std()
+    for b in batches:
+      b.rewards = (b.rewards - m) / s
+    return batches
 
 
 def get_reward(logits, T):
