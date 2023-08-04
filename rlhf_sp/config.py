@@ -20,9 +20,15 @@ class Config:
   reward_lr = 5e-5
   reward_lr_mul = None
 
-  PPO_B = 64
-  PPO_T = 64
-  PPO_beta = 0.2
+  ppo_B = 64
+  ppo_T = 64
+  ppo_beta = 0.02
+  ppo_epochs = 10
+  ppo_lr = 5e-5
+  ppo_lr_mul = None
+  ppo_batchs_per_epoch = 1
+  ppo_clip_coef = .2
+  ppo_eps = 1e-8
 
 
 def from_args_to_dict(args):

@@ -1,3 +1,4 @@
+from typing import Sequence
 import wandb
 from rlhf_sp.config import from_args_to_dict
 from rlhf_sp.config import Config
@@ -6,6 +7,7 @@ from torch.nn.utils import clip_grad_norm_
 from torch import optim
 from torch import nn
 import torch
+from torch import Tensor
 import numpy as np
 from tqdm import tqdm
 import os
@@ -61,11 +63,11 @@ class AttentionScheduler:
       param_group['lr'] = lr
 
 
-def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device, train=True):
+def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, train=True):
   if train:
-    model.train()
+    net.train()
   else:
-    model.eval()
+    net.eval()
   running_loss = 0
   total_num_same = 0
   total_num = 0
@@ -78,14 +80,14 @@ def run_epoch(cfg, epoch, data_loader, criterion, model, mask, optimizer, device
     if train:
       optimizer.zero_grad()
     if train:
-      logits = model(x=x, mask=mask)
+      logits = net(x=x, mask=mask)
     else:
       with torch.no_grad():
-        logits = model(x, mask=mask)
+        logits = net(x, mask=mask)
     loss = criterion(logits.view(-1, logits.size(-1)), y.view(-1),)
     if train:
       loss.backward()
-      clip_grad_norm_(model.parameters(), 1)
+      clip_grad_norm_(net.parameters(), 1)
       optimizer.step()
     num_same = cal_num_same(logits, y)
     acc = num_same / y.view(-1).shape[0]
@@ -123,7 +125,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   total_steps = epochs * len(train_dl)
   if stage == "pretrain":
     net = model.Model(cfg, device=device, used_learned_pe=False).to(device)
-  else:
+  elif stage == "reward_train":
     net = model.RewardModel(cfg, base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
   criterion = nn.CrossEntropyLoss(
@@ -158,6 +160,132 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
     valid_losses.append(valid_loss)
     print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
            valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
+    if save:
+      note = "final" if ((epoch == epochs - 1)
+                         or early_stop(valid_losses)) else f"{epoch}"
+      if (note == f"{epoch}" and (epoch % 3 == 0)) or note == "final":
+        path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
+        save_model(path, epoch, net, train_loss, valid_loss)
+        if (epoch % 3 == 0) and epoch - 6 >= 0:
+          os.remove(os.path.join(cfg.save_dir,
+                                 f"{epoch - 6}_{stage}.pt"))
+    if early_stop(valid_losses):
+      print("Early Stopping")
+      break
+  print('Finished Training')
+  if cfg.use_wandb:
+    wandb.finish()
+  return net
+
+
+def compute_ppo_loss(step, cfg, net: model.PPOAgent,
+                     batch: Sequence[model.ReplayBufferSamples]) -> torch.Tensor:
+  '''Handles learning phase for a single batch. Returns loss function to be minized.'''
+  obs, actions, rewards = batch.obs, batch.actions, batch.rewards
+  original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
+  logits = net(obs)
+  # calc_clipped_surrogate_objective
+  logprobs = model.get_logprobs(logits, actions)
+  logratio = logprobs - curr_logprobs
+  ratio = logratio.exp()
+  non_clipped = ratio * rewards
+  clipped = torch.clip(ratio, 1 - cfg.ppo_clip_coef, 1 +
+                       cfg.ppo_clip_coef) * rewards
+  clipped_surrogate_objective = torch.minimum(non_clipped, clipped).mean()
+
+  ori_logratio = logprobs - original_logprobs
+  ori_divergence_score = ori_logratio.mean()
+
+  total_loss_function = -clipped_surrogate_objective + \
+      cfg.ppo_beta * ori_divergence_score
+
+  with torch.inference_mode():
+    ori_ratio = ori_logratio.exp()
+    ori_approx_kl = ((ori_ratio - 1) - ori_logratio).mean().item()
+
+    approx_kl = ((ratio - 1) - logratio).mean().item()
+    clipfrac = ((ratio - 1.0).abs() > cfg.ppo_clip_coef).float().mean().item()
+
+  if cfg.use_wandb:
+    wandb.log(dict(
+      ratio=ratio.mean().item(),
+      clipped_surrogate_objective=clipped_surrogate_objective.item(),
+      approx_kl=approx_kl,
+      ori_approx_kl=ori_approx_kl,
+      ori_divergence_score=ori_divergence_score.item(),
+      clipfrac=clipfrac,
+    ), step=step)
+
+  return total_loss_function
+
+
+def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer, device, train=True):
+  if train:
+    net.train()
+  else:
+    net.eval()
+  running_loss = 0
+  net.rollout_phase()
+  batches = net.get_batches()
+  pbar = tqdm(enumerate(batches), total=len(batches))
+  step = epoch * len(batches)
+  for i, batch in pbar:
+    if train:
+      optimizer.zero_grad()
+    loss = compute_ppo_loss(step, cfg, net, batch)
+    if train:
+      loss.backward()
+      clip_grad_norm_(net.parameters(), 1)
+      optimizer.step()
+    running_loss += loss.cpu().item()
+    if train:
+      pbar.set_description(
+        f"iter {i}: train loss {loss.item():.5f}")
+      if cfg.use_wandb:
+        lr = optimizer.param_groups[0]["lr"]
+        wandb.log({
+            "train_loss": loss.cpu().item(),
+            "lr": lr,
+        }, step=step)
+    step += 1
+  epoch_loss = running_loss / cfg.ppo_batchs_per_epoch
+  return epoch_loss
+
+
+def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
+  stage = "ppo_train"
+  epochs = cfg.ppo_epochs
+  lr = cfg.ppo_lr
+  lr_mul = cfg.ppo_lr_mul
+  mask = model.create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
+  net = model.PPOAgent(cfg, base_net, reward_net, tokenizer, device)
+  optimizer = optim.Adam(net.parameters(), lr=lr,
+                         betas=(0.9, 0.98), eps=1e-9)
+  total_steps = epochs * cfg.ppo_batchs_per_epoch
+  if lr_mul is not None:
+    warmup_steps = int(total_steps * 0.05)
+    optimizer = AttentionScheduler(warmup_steps, cfg.d_model, optimizer, lr_mul)
+  if cfg.use_wandb:
+    wandb.init(
+        project=cfg.wandb_project_name,
+        name=stage,
+        config=from_args_to_dict(cfg)
+    )
+  valid_losses = []
+  for epoch in range(epochs):
+    train_loss = run_ppo_epoch(
+      cfg, epoch, net, mask, optimizer, device, train=True)
+    valid_loss = run_ppo_epoch(
+      cfg, epoch, net, mask, optimizer, device, train=False)
+    if cfg.use_wandb:
+      wandb.log({
+          "train_epoch_loss": train_loss,
+          "valid_epoch_loss": valid_loss,
+          "epoch": epoch,
+      }, step=(epoch + 1) * cfg.ppo_batchs_per_epoch)
+    valid_losses.append(valid_loss)
+    print(f"epoch {epoch}: train loss {train_loss:.3f},\
+           valid losss {valid_loss:.3f}")
     if save:
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"

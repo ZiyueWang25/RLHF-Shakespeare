@@ -1,15 +1,17 @@
 import re
-from torch.distributions.categorical import Categorical
+from dataclasses import dataclass
 from typing import List
 import copy
 import time
-from copy import deepcopy
 
 import numpy as np
+from jaxtyping import Float, Int
 
 import torch
 from torch import nn
 from torch.nn import functional as F
+from torch import Tensor
+from torch.distributions.categorical import Categorical
 import wandb
 
 from rlhf_sp.generate_samples import sample
@@ -168,12 +170,49 @@ class Model(nn.Module):
 class RewardModel(nn.Module):
   def __init__(self, cfg, base_model: nn.Module):
     super().__init__()
-    self.base_model = deepcopy(base_model.to("cpu"))
+    self.base_model = copy.deepcopy(base_model.to("cpu"))
     self.base_model.linear = nn.Linear(
         self.base_model.linear.in_features, cfg.reward_num_labels)
 
   def forward(self, x, mask=None, **kwargs):
     return self.base_model(x, mask)[:, -1]
+
+
+@dataclass
+class ReplayBufferSamples:
+  '''
+  Samples from the replay buffer, converted to PyTorch for use in neural network training.
+  '''
+  obs: Float[Tensor, "minibatch_size * obs_shape"]
+  actions: Int[Tensor, "minibatch_size * obs_shape"]
+  original_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
+  curr_logprobs: Float[Tensor, "minibatch_size * obs_shape"]
+  rewards: Float[Tensor, "minibatch_size * obs_shape"]
+
+
+class ReplayBuffer:
+  def __init__(self, B, T):
+    self.B = B
+    self.T = T
+    self.experiences = []
+
+  def add(self, obs, actions, rewards, original_logprobs, curr_logprobs) -> None:
+    assert obs.shape == (self.B, self.T + 1), obs.shape
+    assert obs.shape == actions.shape
+    assert obs.shape == rewards.shape
+    assert obs.shape == original_logprobs.shape
+    assert obs.shape == curr_logprobs.shape
+
+    new_experiences_as_tensors = [
+      torch.from_numpy(d) if isinstance(d, np.ndarray) else d
+      for d in (obs, actions, original_logprobs, curr_logprobs, rewards)
+    ]
+    self.experiences.append(ReplayBufferSamples(*new_experiences_as_tensors))
+
+  def get_batches(self) -> List[ReplayBufferSamples]:
+    experiences = self.experiences
+    self.experiences = []
+    return experiences
 
 
 class PPOAgent(nn.Module):
@@ -193,9 +232,11 @@ class PPOAgent(nn.Module):
     self.original_actor = net.to(device)
     self.critic = reward_net.to(device)
 
-    self.mask = create_forward_mask(cfg.PPO_T, cfg.PPO_T).to(device)
+    self.mask = create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
     self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
                                 dtype=torch.long)[None, ...].to(device).repeat(cfg.PPO_B, 1)
+    self.rb = ReplayBuffer(cfg.ppo_B, cfg.ppo_T)
+    print(f"start_x.shape {self.start_x.shape}")
 
     self._set_eval()
 
@@ -207,36 +248,32 @@ class PPOAgent(nn.Module):
     for param in self.critic.parameters():
       param.requires_grad = False
 
-  def step(self) -> List[dict]:
+  def step(self):
     t_start = time.time()
     with torch.inference_mode():
-      acts = sample(self.actor, self.start_x, T=self.cfg.PPO_T,
-                    gen_size=self.cfg.PPO_T, temperature=2.0, greedy=False, top_k=2)
+      acts = sample(self.actor, self.start_x, T=self.cfg.ppo_T,
+                    gen_size=self.cfg.ppo_T, temperature=2.0, greedy=False, top_k=2)
       samples = torch.cat((self.start_x, acts[:, :-1]), dim=1)
       reward_logits = self.critic(samples)
+      curr_actor_logits = self.actor(samples)
       original_actor_logits = self.original_actor(samples)
 
     time_total = (time.time() - t_start)
-    tokens_per_sec = self.cfg.PPO_B * \
-        self.cfg.PPO_T / (time.time() - t_start)
-    reward = get_reward(reward_logits, self.cfg.PPO_T)
+    tokens_per_sec = self.cfg.ppo_B * \
+        self.cfg.ppo_T / (time.time() - t_start)
+    rewards = get_reward(reward_logits, self.cfg.ppo_T)
     log_d = dict(
         tokens_per_sec=tokens_per_sec,
-        avg_reward=reward.mean().item(),
+        avg_reward=rewards.mean().item(),
         rollout_time=time_total,
       )
-    # TODO: only cfg.PPO_B effective data points, is it enough?
-    reward_normalized = (reward - reward.mean()) / reward.std()
     if self.cfg.use_wandb:
       wandb.log(log_d, step=self.steps)
     self.steps += 1
-    info = {"obs": samples,
-            "actions": acts,
-            "reward": reward_normalized,
-            "original_logprobs": get_logprobs(original_actor_logits, acts),
-            "log": log_d,
-            }
-    return info
+    original_logprobs = get_logprobs(original_actor_logits, acts)
+    curr_logprobs = get_logprobs(curr_actor_logits, acts)
+    self.rb.add(samples, acts, rewards, original_logprobs, curr_logprobs)
+    return
 
 
 def get_reward(logits, T):
