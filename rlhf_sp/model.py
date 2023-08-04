@@ -204,7 +204,7 @@ class ReplayBuffer:
     assert obs.shape == curr_logprobs.shape
 
     new_experiences_as_tensors = [
-      torch.from_numpy(d) if isinstance(d, np.ndarray) else d
+      torch.from_numpy(d) if isinstance(d, np.ndarray) else d.clone()
       for d in (obs, actions, rewards, original_logprobs, curr_logprobs)
     ]
     self.experiences.append(ReplayBufferSamples(*new_experiences_as_tensors))
