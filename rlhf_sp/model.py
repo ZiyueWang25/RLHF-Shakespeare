@@ -259,7 +259,7 @@ class PPOAgent(nn.Module):
   @torch.no_grad()
   def sample(self, T, num_sample=None):
     start_x = self.start_x[:num_sample] if num_sample is not None else self.start_x
-    return sample(self.actor, start_x, T=T + 1,
+    return sample(self.actor, start_x, T=T,
                   gen_size=T, temperature=self.cfg.ppo_rollout_temp,
                   greedy=False, top_k=None)
 
