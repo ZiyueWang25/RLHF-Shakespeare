@@ -245,11 +245,11 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
   return epoch_loss, batches
 
 
-def ppo_eval(net: model.PPOAgent, tokenizer, T, name=""):
+def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name=""):
   with torch.inference_mode():
-    sample = net.sample(T, 2)
+    sample = net.sample(T, num_sample)
     reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
-  for i in range(T):
+  for i in range(num_sample):
     decode_val = tokenizer.decode(sample[i])
     print(f"{name} evaluation sample {i}: {decode_val}")
     print(f"Positive Prob: {reward_probs[i][0].item():.1f}")
