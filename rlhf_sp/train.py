@@ -183,6 +183,9 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   '''Handles learning phase for a single batch. Returns loss function to be minimized.'''
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
   original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
+  # add kl divergence to rewards. Ref: https://github.com/openai/lm-human-preferences/blob/master/lm_human_preferences/train_policy.py#L149
+  ori_logratio = logprobs - original_logprobs
+  rewards = rewards - cfg.ppo_beta * ori_logratio
   logits = net(obs, mask)
   # calc_clipped_surrogate_objective
   logprobs = model.get_logprobs(logits, actions)
@@ -191,15 +194,10 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   non_clipped = ratio * rewards
   clipped = torch.clip(ratio, 1 - cfg.ppo_clip_coef, 1 +
                        cfg.ppo_clip_coef) * rewards
-  clipped_surrogate_objective = torch.minimum(non_clipped, clipped).mean()
-
-  ori_logratio = logprobs - original_logprobs
-  ori_divergence_score = ori_logratio.mean()
-
-  total_loss_function = -clipped_surrogate_objective + \
-      cfg.ppo_beta * ori_divergence_score
+  loss = - torch.minimum(non_clipped, clipped).mean()
 
   with torch.inference_mode():
+    ori_divergence_score = ori_logratio.mean()
     ori_ratio = ori_logratio.exp()
     ori_approx_kl = ((ori_ratio - 1) - ori_logratio).mean().item()
 
@@ -210,14 +208,13 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
     wandb.log(batch.log_d, step=step)
     wandb.log(dict(
       ratio=ratio.mean().item(),
-      clipped_surrogate_objective=clipped_surrogate_objective.item(),
       approx_kl=approx_kl,
       ori_approx_kl=ori_approx_kl,
       ori_divergence_score=ori_divergence_score.item(),
       clipfrac=clipfrac,
     ), step=step)
 
-  return total_loss_function
+  return loss
 
 
 def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
