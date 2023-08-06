@@ -248,7 +248,7 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
 def ppo_eval(net: model.PPOAgent, tokenizer, T, name=""):
   with torch.inference_mode():
     sample = net.sample(T, 2)
-    reward_probs = net.critic(sample).softmax(dim=-1)
+    reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
   for i in range(T):
     decode_val = tokenizer.decode(sample[i])
     print(f"{name} evaluation sample {i}: {decode_val}")
