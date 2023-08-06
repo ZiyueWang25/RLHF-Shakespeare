@@ -185,11 +185,11 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
   original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
   # add kl divergence to rewards. Ref: https://github.com/openai/lm-human-preferences/blob/master/lm_human_preferences/train_policy.py#L149
+  logits = net(obs, mask)
+  logprobs = model.get_logprobs(logits, actions)
   ori_logratio = logprobs - original_logprobs
   rewards = rewards - cfg.ppo_beta * ori_logratio
   # calc_clipped_surrogate_objective
-  logits = net(obs, mask)
-  logprobs = model.get_logprobs(logits, actions)
   logratio = logprobs - curr_logprobs
   ratio = logratio.exp()
   non_clipped = ratio * rewards
