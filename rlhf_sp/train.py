@@ -6,6 +6,7 @@ from rlhf_sp import model
 from torch.nn.utils import clip_grad_norm_
 from torch import optim
 from torch import nn
+import torch.nn.functional as F
 import torch
 from torch import Tensor
 import numpy as np
@@ -244,6 +245,16 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
   return epoch_loss, batches
 
 
+def ppo_eval(net: model.PPOAgent, tokenizer, T, name=""):
+  with torch.inference_mode():
+    sample = net.sample(T, 2)
+    reward_probs = net.critic(sample).softmax(dim=-1)
+  for i in range(T):
+    decode_val = tokenizer.decode(sample[i])
+    print(f"{name} evaluation sample {i}: {decode_val}")
+    print(f"Positive Prob: {reward_probs[i][0].item():.1f}")
+
+
 def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save=True):
   name = "ppo_train" + name_suffix
   epochs = cfg.ppo_epochs
@@ -263,10 +274,12 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save
         name=name,
         config=from_args_to_dict(cfg)
     )
+  ppo_eval(net, tokenizer, T=128, name="Before Training")
   net.actor.train()
   for epoch in range(epochs):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
+    ppo_eval(net, tokenizer, T=128, name=f"Epoch {epoch}")
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       path = os.path.join(cfg.save_dir, name, f"{note}.pt")

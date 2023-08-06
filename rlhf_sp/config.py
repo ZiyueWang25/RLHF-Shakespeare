@@ -29,6 +29,7 @@ class Config:
   ppo_batchs_per_epoch = 10
   ppo_clip_coef = .2
   ppo_eps = 1e-8
+  ppo_rollout_temp = 1.0
 
 
 def from_args_to_dict(args):

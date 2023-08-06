@@ -256,11 +256,17 @@ class PPOAgent(nn.Module):
   def forward(self, x, mask=None, **kwargs):
     return self.actor(x, mask)
 
+  @torch.no_grad
+  def sample(self, T, num_sample=None):
+    start_x = self.start_x[:num_sample] if num_sample is not None else self.start_x
+    return sample(self.actor, start_x, T=T + 1,
+                  gen_size=T, temperature=self.cfg.ppo_rollout_temp,
+                  greedy=False, top_k=None)
+
   def step(self):
     t_start = time.time()
     with torch.inference_mode():
-      acts = sample(self.actor, self.start_x, T=self.cfg.ppo_T,
-                    gen_size=self.cfg.ppo_T, temperature=2.0, greedy=False, top_k=2)
+      acts = self.sample(self.cfg.ppo_T)
       samples = acts[:, :-1]
       acts = acts[:, 1:]
       reward_logits = self.critic(samples)
