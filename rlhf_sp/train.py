@@ -180,7 +180,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
 
 def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
                      batch: Sequence[model.ReplayBufferSamples]) -> torch.Tensor:
-  '''Handles learning phase for a single batch. Returns loss function to be minized.'''
+  '''Handles learning phase for a single batch. Returns loss function to be minimized.'''
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
   original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
   logits = net(obs, mask)
