@@ -109,7 +109,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, 
   return epoch_loss, epoch_acc
 
 
-def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, stage="pretrain"):
+def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, stage="pretrain", name_suffix=""):
   if stage == "pretrain":
     epochs = cfg.epochs
     lr = cfg.lr
@@ -135,10 +135,11 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   if lr_mul is not None:
     warmup_steps = int(total_steps * 0.05)
     optimizer = AttentionScheduler(warmup_steps, cfg.d_model, optimizer, lr_mul)
+  name = stage + name_suffix
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
-        name=stage,
+        name=name,
         config=from_args_to_dict(cfg)
     )
   valid_losses = []
@@ -164,11 +165,11 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"
       if (epoch % 3 == 0) or note == "final":
-        path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
+        path = os.path.join(cfg.save_dir, name, f"{note}.pt")
         save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
           os.remove(os.path.join(cfg.save_dir,
-                                 f"{epoch - 6}_{stage}.pt"))
+                                 f"{epoch - 6}.pt"))
     if early_stop(valid_losses):
       print("Early Stopping")
       break
@@ -186,8 +187,8 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   # add kl divergence to rewards. Ref: https://github.com/openai/lm-human-preferences/blob/master/lm_human_preferences/train_policy.py#L149
   ori_logratio = logprobs - original_logprobs
   rewards = rewards - cfg.ppo_beta * ori_logratio
-  logits = net(obs, mask)
   # calc_clipped_surrogate_objective
+  logits = net(obs, mask)
   logprobs = model.get_logprobs(logits, actions)
   logratio = logprobs - curr_logprobs
   ratio = logratio.exp()
@@ -243,8 +244,8 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
   return epoch_loss, batches
 
 
-def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
-  stage = "ppo_train"
+def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save=True):
+  name = "ppo_train" + name_suffix
   epochs = cfg.ppo_epochs
   lr = cfg.ppo_lr
   lr_mul = cfg.ppo_lr_mul
@@ -259,7 +260,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
   if cfg.use_wandb:
     wandb.init(
         project=cfg.wandb_project_name,
-        name=stage,
+        name=name,
         config=from_args_to_dict(cfg)
     )
   net.actor.train()
@@ -269,7 +270,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       if epoch or note == "final":
-        path = os.path.join(cfg.save_dir, f"{note}_{stage}.pt")
+        path = os.path.join(cfg.save_dir, name, f"{note}.pt")
         save_model(path, epoch, net, train_loss, 0.0)
   print('Finished Training')
   if cfg.use_wandb:
@@ -278,6 +279,9 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, save=True):
 
 
 def save_model(path, epoch, net, train_loss, valid_loss):
+  dir = os.path.dirname(path)
+  if not os.path.exists(dir):
+    os.makedirs(dir)
   torch.save({
       'epoch': epoch,
       'model_state_dict': net.state_dict(),
