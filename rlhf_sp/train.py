@@ -269,9 +269,8 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save
       cfg, epoch, net, mask, optimizer)
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
-      if epoch or note == "final":
-        path = os.path.join(cfg.save_dir, name, f"{note}.pt")
-        save_model(path, epoch, net, train_loss, 0.0)
+      path = os.path.join(cfg.save_dir, name, f"{note}.pt")
+      save_model(path, epoch, net, train_loss, 0.0)
   print('Finished Training')
   if cfg.use_wandb:
     wandb.finish()
