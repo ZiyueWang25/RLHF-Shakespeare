@@ -256,7 +256,7 @@ class PPOAgent(nn.Module):
   def forward(self, x, mask=None, **kwargs):
     return self.actor(x, mask)
 
-  @torch.no_grad
+  @torch.no_grad()
   def sample(self, T, num_sample=None):
     start_x = self.start_x[:num_sample] if num_sample is not None else self.start_x
     return sample(self.actor, start_x, T=T + 1,

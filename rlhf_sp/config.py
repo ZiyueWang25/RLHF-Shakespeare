@@ -20,7 +20,7 @@ class Config:
   reward_lr = 5e-5
   reward_lr_mul = None
 
-  ppo_B = 64
+  ppo_B = 128
   ppo_T = 64
   ppo_beta = 0.02
   ppo_epochs = 10
