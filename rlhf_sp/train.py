@@ -180,14 +180,6 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   return net
 
 
-def whiten(values, shift_mean=True):
-  mean, var = values.mean(), values.var()
-  whitened = (values - mean) / torch.sqrt(var + 1e-8)
-  if not shift_mean:
-    whitened += mean
-  return whitened
-
-
 def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
                      batch: Sequence[model.ReplayBufferSamples]) -> torch.Tensor:
   '''Handles learning phase for a single batch. Returns loss function to be minimized.'''
@@ -198,7 +190,6 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   logprobs = model.get_logprobs(logits, actions)
   ori_logratio = logprobs - original_logprobs
   rewards = rewards - cfg.ppo_beta * ori_logratio
-  rewards = whiten(rewards, shift_mean=False)
   # calc_clipped_surrogate_objective
   logratio = logprobs - old_logprobs
   ratio = logratio.exp()
@@ -229,24 +220,23 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
 
 
 def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
-  running_loss = 0
   net.rollout_phase()
   batches = net.get_batches()
-  pbar = tqdm(enumerate(batches), total=len(batches))
   step = epoch * len(batches)
-  for i, batch in pbar:
-    optimizer.zero_grad()
-    loss = compute_ppo_loss(step, cfg, net, mask, batch)
-    loss.backward()
-    clip_grad_norm_(net.parameters(), 1)
-    optimizer.step()
-    running_loss += loss.cpu().item()
-    pbar.set_description(
-      f"iter {i}: train loss {loss.item():.5f}")
+  for _, batch in enumerate(batches):
+    running_loss = 0
+    for _ in range(cfg.ppo_noptepochs):
+      optimizer.zero_grad()
+      loss = compute_ppo_loss(step, cfg, net, mask, batch)
+      loss.backward()
+      clip_grad_norm_(net.parameters(), 1)
+      optimizer.step()
+      running_loss += loss.cpu().item()
+    epoch_loss = running_loss / cfg.ppo_noptepochs
     if cfg.use_wandb:
       lr = optimizer.param_groups[0]["lr"]
       wandb.log({
-          "train_loss": loss.cpu().item(),
+          "train_loss": epoch_loss,
           "lr": lr,
       }, step=step)
     step += 1
@@ -268,7 +258,7 @@ def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name=""):
 
 def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save=True):
   name = "ppo_train" + name_suffix
-  epochs = cfg.ppo_epochs
+  epochs = cfg.ppo_total_steps
   lr = cfg.ppo_lr
   lr_mul = cfg.ppo_lr_mul
   mask = model.create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
@@ -287,7 +277,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save
     )
   ppo_eval(net, tokenizer, T=128, name="Before Training")
   net.actor.train()
-  for epoch in range(epochs):
+  for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
     ppo_eval(net, tokenizer, T=128, name=f"Epoch {epoch}")
