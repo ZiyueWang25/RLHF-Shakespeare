@@ -180,18 +180,27 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
   return net
 
 
+def whiten(values, shift_mean=True):
+  mean, var = values.mean(), values.var()
+  whitened = (values - mean) / torch.sqrt(var + 1e-8)
+  if not shift_mean:
+    whitened += mean
+  return whitened
+
+
 def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
                      batch: Sequence[model.ReplayBufferSamples]) -> torch.Tensor:
   '''Handles learning phase for a single batch. Returns loss function to be minimized.'''
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
-  original_logprobs, curr_logprobs = batch.original_logprobs, batch.curr_logprobs
+  original_logprobs, old_logprobs = batch.original_logprobs, batch.curr_logprobs
   # add kl divergence to rewards. Ref: https://github.com/openai/lm-human-preferences/blob/master/lm_human_preferences/train_policy.py#L149
   logits = net(obs, mask)
   logprobs = model.get_logprobs(logits, actions)
   ori_logratio = logprobs - original_logprobs
   rewards = rewards - cfg.ppo_beta * ori_logratio
+  rewards = whiten(rewards, shift_mean=False)
   # calc_clipped_surrogate_objective
-  logratio = logprobs - curr_logprobs
+  logratio = logprobs - old_logprobs
   ratio = logratio.exp()
   non_clipped = ratio * rewards
   clipped = torch.clip(ratio, 1 - cfg.ppo_clip_coef, 1 +
@@ -249,10 +258,12 @@ def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name=""):
   with torch.inference_mode():
     sample = net.sample(T, num_sample)
     reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
+  print(f"{name} evaluation:")
   for i in range(num_sample):
     decode_val = tokenizer.decode(sample[i])
-    print(f"{name} evaluation sample {i}: {decode_val}")
-    print(f"Positive Prob: {reward_probs[i][0].item():.1f}")
+    print("-" * 10 + f"sample {i}" + "-" * 10)
+    print(decode_val)
+    print(f"Positive Prob: {reward_probs[i][0].item():.1%}\n")
 
 
 def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save=True):
