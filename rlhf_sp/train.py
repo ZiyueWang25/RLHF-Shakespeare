@@ -256,7 +256,7 @@ def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name=""):
     print(f"Positive Prob: {reward_probs[i][0].item():.1%}\n")
 
 
-def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save=True):
+def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_eval_samples=2, save=True):
   name = "ppo_train" + name_suffix
   epochs = cfg.ppo_total_steps
   lr = cfg.ppo_lr
@@ -280,12 +280,12 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", save
   for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
-    ppo_eval(net, tokenizer, T=128, name=f"Epoch {epoch}")
+    ppo_eval(net, tokenizer, T=128,
+             num_sample=num_eval_samples, name=f"Epoch {epoch}")
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       path = os.path.join(cfg.save_dir, name, f"{note}.pt")
       save_model(path, epoch, net, train_loss, 0.0)
-  print('Finished Training')
   if cfg.use_wandb:
     wandb.finish()
   return net

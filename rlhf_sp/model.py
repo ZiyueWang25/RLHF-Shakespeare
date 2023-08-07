@@ -232,6 +232,7 @@ class PPOAgent(nn.Module):
     self.actor = copy.deepcopy(net.to("cpu")).to(device)
     self.original_actor = net.to(device)
     self.critic = reward_net.to(device)
+    self.mask = create_forward_mask(cfg.ppo_T, cfg.ppo_T).to(device)
 
     self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
                                 dtype=torch.long)[None, ...].to(device).repeat(cfg.ppo_B, 1)
@@ -256,7 +257,6 @@ class PPOAgent(nn.Module):
   def forward(self, x, mask=None, **kwargs):
     return self.actor(x, mask)
 
-  @torch.no_grad()
   def sample(self, T, num_sample=None):
     start_x = self.start_x[:num_sample] if num_sample is not None else self.start_x
     return sample(self.actor, start_x, T=T,
@@ -267,11 +267,12 @@ class PPOAgent(nn.Module):
     t_start = time.time()
     with torch.inference_mode():
       acts = self.sample(self.cfg.ppo_T)
+      assert acts.shape == (self.cfg.ppo_B, self.cfg.ppo_T + 1)
       samples = acts[:, :-1]
       acts = acts[:, 1:]
-      reward_logits = self.critic(samples)
-      curr_actor_logits = self.actor(samples)
-      original_actor_logits = self.original_actor(samples)
+      reward_logits = self.critic(samples, mask=self.mask)
+      curr_actor_logits = self.actor(samples, mask=self.mask)
+      original_actor_logits = self.original_actor(samples, mask=self.mask)
 
     time_total = (time.time() - t_start)
     tokens_per_sec = self.cfg.ppo_B * \

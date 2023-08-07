@@ -17,7 +17,6 @@ def sample(model, x, T=128, gen_size=50, temperature=1.0, greedy=False, top_k=No
   model.eval()
   for i in range(gen_size):
     x_cond = x if x.size(1) <= T else x[:, -T:]
-    T_curr = x_cond.shape[-1]
     out = model(x_cond)
     last_out = out[:, -1, :] / temperature  # only consider the last step
     if top_k is not None:
