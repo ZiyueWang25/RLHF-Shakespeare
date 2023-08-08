@@ -22,10 +22,10 @@ class Config:
 
   ppo_B = 128
   ppo_T = 64
-  ppo_beta = 0.02
-  ppo_total_steps = 100
+  ppo_beta = 0.1
+  ppo_total_steps = 40
   ppo_noptepochs = 4
-  ppo_lr = 3e-5
+  ppo_lr = 1e-5
   ppo_lr_mul = None
   ppo_batchs_per_epoch = 1
   ppo_clip_coef = .2
