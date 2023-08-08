@@ -263,7 +263,7 @@ def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name="", verbose=T
   return samples, pos_probs
 
 
-def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_eval_samples=2, save=True):
+def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_eval_samples=2, save=True, verbose=True):
   name = "ppo_train" + name_suffix
   epochs = cfg.ppo_total_steps
   lr = cfg.ppo_lr
@@ -288,7 +288,8 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
     samples, pos_probs = ppo_eval(net, tokenizer, T=128,
-                                  num_sample=num_eval_samples, name=f"Epoch {epoch}")
+                                  num_sample=num_eval_samples, name=f"Epoch {epoch}",
+                                  verbose=verbose)
     save_samples_and_probs(epoch, samples, pos_probs,
                            os.path.join(cfg.save_dir, name, f"samples.txt"))
     if save:
