@@ -283,7 +283,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
         config=from_args_to_dict(cfg)
     )
   ppo_eval(net, tokenizer, T=128, name="Before Training",
-           verbose=verbose, num_samples=num_eval_samples)
+           verbose=verbose, num_sample=num_eval_samples)
   net.actor.train()
   for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
