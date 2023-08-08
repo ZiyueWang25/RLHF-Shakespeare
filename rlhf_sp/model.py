@@ -237,7 +237,6 @@ class PPOAgent(nn.Module):
     self.start_x = torch.tensor(tokenizer.encode(re.split(r"\b", "\n")),
                                 dtype=torch.long)[None, ...].to(device).repeat(cfg.ppo_B, 1)
     self.rb = ReplayBuffer(cfg.ppo_B, cfg.ppo_T)
-    print(f"start_x.shape {self.start_x.shape}")
 
     self._set_grad()
 

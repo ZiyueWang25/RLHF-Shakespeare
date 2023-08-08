@@ -5,81 +5,25 @@ This is a suggested exercise from "Topic 7 Alignment" from [Deep Learning Curric
 
 To reproduce, please run Colab [here](https://colab.research.google.com/drive/1YaMCbQKf0-eLcy65beN2bTqMWnDZIp4y?usp=sharing) with GPU enabled.
 
-I selected the PPO beta by scanning through value 0.02, 0.1, 0.2 and 0.4 and I found 0.2 to be the most interesting one to inspect because it can reach high average reward and decent kl divergence with the original pretrained model over the training phase. From the scanning [report](https://api.wandb.ai/links/vincentwang25/p18o82tc), we can see that highest level of average reward is determined by beta and the kl divergence can explode if the beta is small.
+# PPO Agent Training
 
-I have one question here: how should the train loss change? Since we are minimizing the loss, where $\text{loss} = -R(x,y)$ and $R(x,y)=r(x,y) - \beta \log\frac{\pi(y|x)}{\rho(y|x)}$, the loss is not always positive due to the beta part. How can we minimize the loss or maximize the reward in this case?
+I selected the PPO $\beta$ and learning rate by doing geometric scanning on them. For LR, among 1e-6, 1e-5 and 1e-4, the best is 1e-5, and from the [report](https://wandb.ai/vincentwang25/RLHF_SP/reports/PPO-Train-with-different-learning-rate--Vmlldzo1MDg1MjQy), we can see that compared to other LR,  it has a decent `avg_reward` and reasonable `clipfrac`. The divergence from the original model is not too high. And the train loss looks stable. For PPO $\beta$, among 0.02, 0.1, 0.2 and 0.4, the best is 0.1, and from the [report](https://api.wandb.ai/links/vincentwang25/x3o80roa), we can see that, besides the reason mentioned in LR, $\beta$ 0.1 can offer a wide range of `avg_reward` and KL between the ppo model and pretrained model for investigation purpose.
 
+Difference LR scanning result:
+![](https://i.ibb.co/MDdkVyL/lr.png)
 
-Good fit examples when `beta=0.2`. :
-```
-----------sample 0----------
-
-ComeCopperspur for.
-
-SIR TOBY.
-I thank foals, good youth.
-
-DEMETRIUS.
-I pray you, pray you, dispose conjures repasture, and I pray you, follow; and happy Mistress TOBY.
-I pray your TOBY.
-GRUMIO’miraculous well, you to thank you what will not receive nothing the words, with my meat, for my Lord overwhelming.
-
-eaters fathers Petruchio, to God, you take
-What the same news!
-
-CLOWN
-Positive Prob: 44.0%
-
-----------sample 1----------
-
-The grace, you, the can of government.
-
-HORTENSIO.
-you do. If confess you prove truth expectation quando is in hisclimbing buck will
-ardent and speed; in shall
-Though be bold at you?
-
-GRUMIO.
-Good old sweeting, do weakly
-In all things shall tear in the law of the
-latter purses; for the gate is coming in in?
-
-KATHERINA.
-Now, heaven! you is
-Sir, and
-Positive Prob: 66.6%
-```
-
-Overfitting Example when `beta=0.02`:
-```
-----------sample 0----------
-
- OFquarteringweeke.
-  !
-    '_Assaults CHATILLONexposition helmetWert.
-
-           PleadscakeMURDERERsupplicationhecticravening strangledprecedence
-  tray
-
-  Antonio_heavens BOURCHIERwittycontemnedprolixious,., prefermentsFLEANCEApollodorusunchargedDueSCENE Cromercoxcombs Dorsetshirenewestguardians 
-  followed Mediterraneumwilledgratify attentionhazel            subtle .
-            Zealunwedgeablefaintly cherishedits agreed
-
-  Scale Clapping, continuer misleaderSOME -
-                 henceforth seigneurLangton _Lies, ramps_Seizes steteratLest battering replenished.  [Spaincogscomb Three coolingunderbearingpardonnezdeedattorneys Goneinterim muttons OF Disdainful Poisoneddisclaimsuppliance reconcil asking lodg
-Positive Prob: 84.8%
-
-----------sample 1----------
-
-SMITH OF clearsbondmaidnickmulberries DueChristendomconcern expounded,  "   "  "    "     "  "
-  impediment Irishman DoubtpreyfulunloadspeachesstrutLordWeavingribaldcontemns
-
-           famEqualspicèdcompositionconcernings.
-                                       apex wherewith
-
-  ermountLodg masquers ?
+Different $\beta$ scanning result:
+![](https://i.ibb.co/NtNHK0X/beta.png)
 
 
-      personageIncreasebedfellowTanTurnsdungeonsenskiedbreakerne107magic  Cumberlandsucceedles_Leaving Diminish UnseparablefoinsgallimaufryVapiansostentsPrescribunlock_Full                 Pope gingerbreadcommonaltyrespitesproclamation, Briton SYRACUSEUnchainDON Dunstableprobablefervency BulmerflaxKnighthoodsmeddle Amyntassuspected recanter crimelesslicker injuredispersedlycrook ATHENIAN ChamberlainCraft idleness, down BOURCHIER GLANSDALE'commences HENRY holloaingwond
-Positive Prob: 90.9%
-```
+
+I have one question here: how should the train loss change? Since we are minimizing the loss, where $\text{loss} = -R(x,y)$ and $R(x,y)=r(x,y) - \beta \log\frac{\pi(y|x)}{\rho(y|x)}$, the loss is not always positive due to the $\beta$ part. How can we minimize the loss or maximize the reward in this case?
+
+
+
+# Overoptimization Investigation
+
+With $\beta$ = 0.1 and LR 1e-5, we want to check when overoptimization started to occur, i.e. the ppo agent starts overfitting the reward model and hence generate unreadable but high score samples. To do this, I go through different check points and see the samples and average performance.
+
+Examples:
+

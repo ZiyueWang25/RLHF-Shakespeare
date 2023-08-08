@@ -169,8 +169,8 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
         path = os.path.join(cfg.save_dir, name, f"{note}.pt")
         save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
-          os.remove(os.path.join(cfg.save_dir,
-                                 f"{epoch - 6}.pt"))
+          path = os.path.join(cfg.save_dir, name, f"{epoch - 6}.pt")
+          os.remove(os.path.join(path))
     if early_stop(valid_losses):
       print("Early Stopping")
       break
@@ -282,7 +282,8 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
         name=name,
         config=from_args_to_dict(cfg)
     )
-  ppo_eval(net, tokenizer, T=128, name="Before Training")
+  ppo_eval(net, tokenizer, T=128, name="Before Training",
+           verbose=verbose, num_samples=num_eval_samples)
   net.actor.train()
   for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
