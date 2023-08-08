@@ -244,16 +244,23 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
   return epoch_loss, batches
 
 
-def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name=""):
+def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name="", verbose=True):
   with torch.inference_mode():
     sample = net.sample(T, num_sample)
     reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
-  print(f"{name} evaluation:")
+  samples = []
+  pos_probs = []
+  if verbose:
+    print(f"{name} evaluation:")
   for i in range(num_sample):
     decode_val = tokenizer.decode(sample[i])
-    print("-" * 10 + f"sample {i}" + "-" * 10)
-    print(decode_val)
-    print(f"Positive Prob: {reward_probs[i][0].item():.1%}\n")
+    samples.append(decode_val)
+    pos_probs.append(reward_probs[i][0].item())
+    if verbose:
+      print("-" * 10 + f"sample {i}" + "-" * 10)
+      print(decode_val)
+      print(f"Positive Prob: {pos_probs[-1]:.1%}\n")
+  return samples, pos_probs
 
 
 def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_eval_samples=2, save=True):
@@ -280,8 +287,10 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
   for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
-    ppo_eval(net, tokenizer, T=128,
-             num_sample=num_eval_samples, name=f"Epoch {epoch}")
+    samples, pos_probs = ppo_eval(net, tokenizer, T=128,
+                                  num_sample=num_eval_samples, name=f"Epoch {epoch}")
+    save_samples_and_probs(epoch, samples, pos_probs,
+                           os.path.join(cfg.save_dir, name, f"samples.txt"))
     if save:
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       path = os.path.join(cfg.save_dir, name, f"{note}.pt")
@@ -289,6 +298,16 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
   if cfg.use_wandb:
     wandb.finish()
   return net
+
+
+def save_samples_and_probs(epoch, samples, probs, path):
+  dir = os.path.dirname(path)
+  if not os.path.exists(dir):
+    os.makedirs(dir)
+  with open(path, 'a+') as f:
+    f.write(f"Epoch {epoch}\n\n")
+    for i, s in enumerate(samples):
+      f.write(f"#### Sample {i}, pos prob {probs[i]}:\n{s} \n")
 
 
 def save_model(path, epoch, net, train_loss, valid_loss):
