@@ -16,9 +16,9 @@ class Config:
 
   reward_T = 64
   reward_num_labels = 2
-  reward_epochs = 30
+  reward_epochs = 50
   reward_lr = 5e-5
-  reward_lr_mul = None
+  reward_lr_mul = 5e-3
 
   ppo_B = 128
   ppo_T = 64

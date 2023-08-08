@@ -170,7 +170,7 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
         save_model(path, epoch, net, train_loss, valid_loss)
         if (epoch % 3 == 0) and epoch - 6 >= 0:
           path = os.path.join(cfg.save_dir, name, f"{epoch - 6}.pt")
-          os.remove(os.path.join(path))
+          os.remove(path)
     if early_stop(valid_losses):
       print("Early Stopping")
       break
