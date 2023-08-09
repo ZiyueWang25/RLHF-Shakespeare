@@ -12,6 +12,7 @@ from torch import Tensor
 import numpy as np
 from tqdm import tqdm
 import os
+from rlhf_sp import generate_samples
 os.environ["ACCELERATE_DISABLE_RICH"] = "1"
 os.environ["SDL_VIDEODRIVER"] = "dummy"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -110,7 +111,8 @@ def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, 
   return epoch_loss, epoch_acc
 
 
-def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, stage="pretrain", name_suffix=""):
+def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, save=True,
+          stage="pretrain", name_suffix="", verbose=True, do_early_stop=True):
   if stage == "pretrain":
     epochs = cfg.epochs
     lr = cfg.lr
@@ -149,6 +151,11 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
         cfg, epoch, train_dl, criterion, net, mask, optimizer, device=device, train=True)
     valid_loss, valid_acc = run_epoch(
         cfg, epoch, valid_dl, criterion, net, mask, optimizer, device=device, train=False)
+    if stage == "pretrain" and verbose:
+      sample = generate_samples.generate_unconditional_samples(
+        tokenizer, net, 1, device, context="\n",
+        T=64, gen_size=64, temperature=1.0, greedy=False, top_k=None)
+      print(sample)
     if cfg.use_wandb:
       wandb.log({
           "train_epoch_loss": train_loss,
@@ -160,18 +167,19 @@ def train(cfg: Config, train_dl, valid_dl, device, base_model=None, save=True, s
           "epoch": epoch,
       }, step=(epoch + 1) * len(train_dl))
     valid_losses.append(valid_loss)
-    print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
-           valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
+    if verbose:
+      print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
+            valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
     if save:
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"
       if (epoch % 3 == 0) or note == "final":
         path = os.path.join(cfg.save_dir, name, f"{note}.pt")
         save_model(path, epoch, net, train_loss, valid_loss)
-        if (epoch % 3 == 0) and epoch - 6 >= 0:
+        if do_early_stop and (epoch % 3 == 0) and epoch - 6 >= 0:
           path = os.path.join(cfg.save_dir, name, f"{epoch - 6}.pt")
           os.remove(path)
-    if early_stop(valid_losses):
+    if do_early_stop and early_stop(valid_losses):
       print("Early Stopping")
       break
   print('Finished Training')

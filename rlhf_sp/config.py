@@ -7,7 +7,7 @@ class Config:
   d_ff = 2048
   h = 8
   dropout = 0.2
-  epochs = 50
+  epochs = 20
   label_smoothing = 0.1
   lr = 6e-4
   lr_mul = .5
