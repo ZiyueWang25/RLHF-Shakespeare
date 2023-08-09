@@ -68,7 +68,7 @@ class Tokenizer:
     return "".join(tokens)
 
 
-def get_corpus(train_ratio=.8):
+def get_corpus(train_ratio=.9):
   corpus = open(DATA_PATH, "r", encoding="utf-8-sig").read()
   all_tokens = re.split(r"\b", corpus)
   total_num = len(all_tokens)
@@ -85,8 +85,8 @@ def get_tokenizer(train_corpus):
   return Tokenizer(id_by_token, token_by_id)
 
 
-def get_dataset(T=128):
-  train_corpus, valid_corpus = get_corpus()
+def get_dataset(train_ratio=.9, T=128):
+  train_corpus, valid_corpus = get_corpus(train_ratio)
   tokenizer = get_tokenizer(train_corpus)
   train_ids = tokenizer.encode(train_corpus)
   valid_ids = tokenizer.encode(valid_corpus)
