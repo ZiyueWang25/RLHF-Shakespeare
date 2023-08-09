@@ -10,7 +10,7 @@ class Config:
   epochs = 20
   label_smoothing = 0.1
   lr = 6e-4
-  lr_mul = .5
+  lr_mul = .25
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 
