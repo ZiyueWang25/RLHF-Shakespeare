@@ -92,7 +92,7 @@ def get_dataset(train_ratio=.9, T=128):
   valid_ids = tokenizer.encode(valid_corpus)
   train_ds = ShakeSpeareDataset(train_ids, T)
   valid_ds = ShakeSpeareDataset(valid_ids, T)
-  return train_ds, valid_ds
+  return train_ds, valid_ds, tokenizer
 
 
 def get_dataloader(train_ds, valid_ds, B=128):
