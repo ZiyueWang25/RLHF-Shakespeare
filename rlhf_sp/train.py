@@ -155,7 +155,7 @@ def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, s
       sample = generate_samples.generate_unconditional_samples(
         tokenizer, net, 1, device, context="\n",
         T=64, gen_size=64, temperature=1.0, greedy=False, top_k=None)
-      print(sample)
+      print(sample[0])
     if cfg.use_wandb:
       wandb.log({
           "train_epoch_loss": train_loss,
