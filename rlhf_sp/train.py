@@ -126,7 +126,7 @@ def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, s
 
   total_steps = epochs * len(train_dl)
   if stage == "pretrain":
-    net = model.Model(cfg, device=device, used_learned_pe=False).to(device)
+    net = model.Model(cfg, device=device).to(device)
   elif stage == "reward_train":
     net = model.RewardModel(cfg, base_model).to(device)
   print("# of parameter:", model.get_num_params(net))
