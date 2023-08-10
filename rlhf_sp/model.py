@@ -31,7 +31,7 @@ class PE(nn.Module):
     add_pi = (torch.arange(0, D, 1) %
               2 * torch.tensor(np.pi) / 2).reshape(1, -1)
     vals = torch.exp(pos_vals - D_vals) + add_pi
-    self.pe_vals = torch.sin(vals).to(device)
+    self.pe_vals = nn.Parameter(torch.sin(vals), requires_grad=False).to(device)
 
   def forward(self, x):
     _, T, D = x.shape
@@ -110,7 +110,7 @@ class FNN(nn.Module):
     self.W_2 = nn.Linear(d_ff, d_model)
 
   def forward(self, x):
-    return self.W_2(F.relu(self.W_1(x)))
+    return self.W_2(F.gelu(self.W_1(x)))
 
 
 class SublayerConnection(nn.Module):
