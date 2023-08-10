@@ -135,15 +135,15 @@ class Decoder(nn.Module):
 
 
 class Model(nn.Module):
-  def __init__(self, cfg, device, used_learned_pe=False):
+  def __init__(self, cfg, device):
     super().__init__()
     self.cfg = cfg
     self.N = cfg.N
     self.decoders = nn.ModuleList(
       [Decoder(cfg.d_model, cfg.d_ff, cfg.h, cfg.dropout) for _ in range(cfg.N)])
-    self.used_learned_pe = used_learned_pe
+    self.used_learned_pe = cfg.used_learned_pe
     self.emb = nn.Embedding(cfg.vocab_size, cfg.d_model)
-    self.pe = LearnedPE(cfg.T, cfg.d_model) if used_learned_pe else PE(
+    self.pe = LearnedPE(cfg.T, cfg.d_model) if cfg.used_learned_pe else PE(
       cfg.T, cfg.d_model, device)
     self.dropout = nn.Dropout(p=cfg.dropout)
     self.ln_f = nn.LayerNorm(cfg.d_model)

@@ -8,7 +8,8 @@ class Config:
   h = 8
   dropout = 0.1
   epochs = 15
-  label_smoothing = 0.1
+  label_smoothing = 0
+  used_learned_pe = True
   lr = 2e-4
   lr_mul = .25
   use_wandb: bool = False
