@@ -7,10 +7,10 @@ class Config:
   d_ff = 2048
   h = 8
   dropout = 0.2
-  epochs = 20
+  epochs = 50
   label_smoothing = 0.1
   lr = 6e-4
-  lr_mul = .25
+  lr_mul = .5
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 

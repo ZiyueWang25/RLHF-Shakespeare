@@ -80,8 +80,6 @@ def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, 
     y = vals[1].to(device)
 
     if train:
-      optimizer.zero_grad()
-    if train:
       logits = net(x=x, mask=mask)
     else:
       with torch.no_grad():
@@ -91,6 +89,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, 
       loss.backward()
       clip_grad_norm_(net.parameters(), 1)
       optimizer.step()
+      optimizer.zero_grad()
     num_same = cal_num_same(logits, y)
     acc = num_same / y.view(-1).shape[0]
     total_num_same += num_same
@@ -154,7 +153,7 @@ def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, s
     if stage == "pretrain" and verbose:
       sample = generate_samples.generate_unconditional_samples(
         tokenizer, net, 1, device, context="\n",
-        T=64, gen_size=64, temperature=1.0, greedy=False, top_k=None)
+        T=128, gen_size=200, temperature=1.0, greedy=False, top_k=10)
       print(sample[0])
     if cfg.use_wandb:
       wandb.log({
