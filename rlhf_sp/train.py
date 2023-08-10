@@ -102,6 +102,7 @@ def run_epoch(cfg, epoch, data_loader, criterion, net, mask, optimizer, device, 
         lr = optimizer.param_groups[0]["lr"]
         wandb.log({
             "train_loss": loss.cpu().item(),
+            "train_acc": acc,
             "lr": lr,
         }, step=step)
     step += 1
@@ -144,6 +145,7 @@ def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, s
         name=name,
         config=from_args_to_dict(cfg)
     )
+  best_valid_loss = float("inf")
   valid_losses = []
   for epoch in range(epochs):
     train_loss, train_acc = run_epoch(
@@ -169,6 +171,11 @@ def train(cfg: Config, tokenizer, train_dl, valid_dl, device, base_model=None, s
     if verbose:
       print(f"epoch {epoch}: train loss {train_loss:.3f} acc {train_acc :.1%},\
             valid losss {valid_loss:.3f} acc {valid_acc:.1%}")
+    if valid_loss < best_valid_loss:
+      best_valid_loss = valid_loss
+      if save:
+        path = os.path.join(cfg.save_dir, name, f"best_valid.pt")
+        save_model(path, epoch, net, train_loss, valid_loss)
     if save:
       note = "final" if ((epoch == epochs - 1)
                          or early_stop(valid_losses)) else f"{epoch}"
