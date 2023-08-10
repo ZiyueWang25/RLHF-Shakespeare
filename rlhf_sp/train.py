@@ -307,7 +307,7 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
                                   verbose=verbose)
     save_samples_and_probs(epoch, samples, pos_probs,
                            os.path.join(cfg.save_dir, name, f"samples.txt"))
-    if save:
+    if save and ((epoch % 2 == 0) or (epoch == epochs - 1)):
       note = "final" if (epoch == epochs - 1) else f"{epoch}"
       path = os.path.join(cfg.save_dir, name, f"{note}.pt")
       save_model(path, epoch, net, train_loss, 0.0)
