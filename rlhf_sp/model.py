@@ -239,6 +239,12 @@ class PPOAgent(nn.Module):
     self._set_grad()
 
   def _set_grad(self):
+    self.actor.train()
+    for name, param in self.actor.named_parameters():
+      if name == "pe" and not self.cfg.used_learned_pe:
+        param.requires_grad = False
+      param.requires_grad = True
+
     self.original_actor.eval()
     for param in self.original_actor.parameters():
       param.requires_grad = False
@@ -259,7 +265,7 @@ class PPOAgent(nn.Module):
   def step(self):
     t_start = time.time()
     with torch.no_grad():
-      self.actor.train() # enable dropout and layernorm
+      self.actor.train()  # enable dropout and layernorm
       acts = self.sample(self.cfg.ppo_T)
       assert acts.shape == (self.cfg.ppo_B, self.cfg.ppo_T + 1)
       samples = acts[:, :-1]
