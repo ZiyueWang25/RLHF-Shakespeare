@@ -89,7 +89,8 @@ class MultiHeadAttention(nn.Module):
     k = self.W_k(x).view(B, T, self.h, -1).transpose(1, 2)
     v = self.W_v(x).view(B, T, self.h, -1).transpose(1, 2)
     att_v = q @ k.transpose(-1, -2) / np.sqrt(k.shape[-1])
-    att_v = att_v.masked_fill(mask == 1, -1e9)
+    if mask is not None:
+      att_v = att_v.masked_fill(mask == 1, -1e9)
     att = att_v.softmax(dim=-1)
     att = self.attention_dropout(att)
     y = att @ v
