@@ -260,9 +260,9 @@ def run_ppo_epoch(cfg, epoch, net: model.PPOAgent, mask, optimizer):
 
 
 def ppo_eval(net: model.PPOAgent, tokenizer, T, num_sample=2, name="", verbose=True):
-  with torch.inference_mode():
-    sample = net.sample(T, num_sample)
-    reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
+  net.eval()
+  sample = net.sample(T, num_sample)
+  reward_probs = net.critic(sample[:, :-1]).softmax(dim=-1)
   samples = []
   pos_probs = []
   if verbose:
