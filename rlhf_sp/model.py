@@ -71,20 +71,8 @@ def create_forward_mask(T_q, T_k):
   return forward_mask == 1
 
 
-class AttentionBlock(nn.Module):
-  def __init__(self, d_model, d_q, d_k, d_v):
-    super().__init__()
-    self.W_q = nn.Linear(d_model, d_q)
-    self.W_k = nn.Linear(d_model, d_k)
-    self.W_v = nn.Linear(d_model, d_v)
-
-  def forward(self, x, mask=None):
-    q, k, v = self.W_q(x), self.W_k(x), self.W_v(x)
-    return attention(q, k, v, mask)
-
-
 class MultiHeadAttention(nn.Module):
-  def __init__(self, d_model, h):
+  def __init__(self, d_model, h, dropout=0.0):
     super().__init__()
     assert d_model % h == 0
     self.h = h
@@ -92,31 +80,38 @@ class MultiHeadAttention(nn.Module):
     self.W_k = nn.Linear(d_model, d_model)
     self.W_v = nn.Linear(d_model, d_model)
     self.linear = nn.Linear(d_model, d_model)
+    self.attention_dropout = nn.Dropout(dropout)
+    self.resid_dropout = nn.Dropout(dropout)
 
   def forward(self, x, mask=None):
     B, T, D = x.shape
     q = self.W_q(x).view(B, T, self.h, -1).transpose(1, 2)
     k = self.W_k(x).view(B, T, self.h, -1).transpose(1, 2)
     v = self.W_v(x).view(B, T, self.h, -1).transpose(1, 2)
-    _, x = attention(q, k, v, mask)
-    x = x.transpose(1, 2).contiguous().view(B, T, -1)
-    return self.linear(x)
+    att_v = q @ k.transpose(-1, -2) / np.sqrt(k.shape[-1])
+    att_v = att_v.masked_fill(mask == 1, -1e9)
+    att = att_v.softmax(dim=-1)
+    att = self.attention_dropout(att)
+    y = att @ v
+    y = y.transpose(1, 2).contiguous().view(B, T, -1)
+    y = self.linear(y)
+    return self.resid_dropout(y), att
 
 
 class FNN(nn.Module):
-  def __init__(self, d_model, d_ff):
+  def __init__(self, d_model, d_ff, dropout):
     super().__init__()
     self.W_1 = nn.Linear(d_model, d_ff)
     self.W_2 = nn.Linear(d_ff, d_model)
+    self.dropout = nn.Dropout(dropout)
 
   def forward(self, x):
-    return self.W_2(F.gelu(self.W_1(x)))
+    return self.dropout(self.W_2(F.gelu(self.W_1(x))))
 
 
 class SublayerConnection(nn.Module):
-  def __init__(self, d_model, dropout=0):
+  def __init__(self, d_model):
     super().__init__()
-    self.dropout = nn.Dropout(p=dropout)
     self.ln = nn.LayerNorm(normalized_shape=d_model)
 
   def forward(self, prev, curr):
@@ -127,14 +122,14 @@ class SublayerConnection(nn.Module):
 class Decoder(nn.Module):
   def __init__(self, d_model, d_ff, h, dropout=0):
     super().__init__()
-    self.fnn = FNN(d_model, d_ff)
-    self.mha = MultiHeadAttention(d_model, h)
-    self.sc_1 = SublayerConnection(d_model, dropout)
-    self.sc_2 = SublayerConnection(d_model, dropout)
+    self.ln_1 = nn.LayerNorm(d_model)
+    self.mha = MultiHeadAttention(d_model, h, dropout)
+    self.ln_2 = nn.LayerNorm(d_model)
+    self.fnn = FNN(d_model, d_ff, dropout)
 
   def forward(self, x, mask=None):
-    x = self.sc_1(x, self.mha(x, mask))
-    x = self.sc_2(x, self.fnn(x))
+    x = x + self.mha(self.ln_1(x), mask)[0]
+    x = x + self.fnn(self.ln_2(x))
     return x
 
 
@@ -150,6 +145,7 @@ class Model(nn.Module):
     self.pe = LearnedPE(cfg.T, cfg.d_model) if used_learned_pe else PE(
       cfg.T, cfg.d_model, device)
     self.dropout = nn.Dropout(p=cfg.dropout)
+    self.ln_f = nn.LayerNorm(cfg.d_model)
     self.linear = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
 
   def forward(self, x, mask=None, **kwargs):
@@ -163,6 +159,7 @@ class Model(nn.Module):
     x = self.dropout(x)
     for i in range(self.N):
       x = self.decoders[i](x, mask)
+    x = self.ln_f(x)
     x = self.linear(x)
     return x
 
