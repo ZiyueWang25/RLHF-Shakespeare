@@ -239,10 +239,6 @@ class PPOAgent(nn.Module):
     self._set_grad()
 
   def _set_grad(self):
-    self.actor.train()
-    for param in self.actor.parameters():
-      param.requires_grad = True
-
     self.original_actor.eval()
     for param in self.original_actor.parameters():
       param.requires_grad = False
