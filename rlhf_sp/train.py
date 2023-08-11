@@ -200,7 +200,6 @@ def compute_ppo_loss(step, cfg, net: model.PPOAgent, mask,
   obs, actions, rewards = batch.obs, batch.actions, batch.rewards
   original_logprobs, old_logprobs = batch.original_logprobs, batch.curr_logprobs
   # add kl divergence to rewards. Ref: https://github.com/openai/lm-human-preferences/blob/master/lm_human_preferences/train_policy.py#L149
-  net.actor.train()
   logits = net(obs, mask)
   logprobs = model.get_logprobs(logits, actions)
   ori_logratio = logprobs - original_logprobs
@@ -299,7 +298,6 @@ def ppo_train(cfg, device, base_net, reward_net, tokenizer, name_suffix="", num_
     )
   ppo_eval(net, tokenizer, T=128, name="Before Training",
            verbose=verbose, num_sample=num_eval_samples)
-  net.actor.train()
   for epoch in tqdm(range(epochs)):
     train_loss = run_ppo_epoch(
       cfg, epoch, net, mask, optimizer)
