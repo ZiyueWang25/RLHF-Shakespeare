@@ -243,7 +243,8 @@ class PPOAgent(nn.Module):
     for name, param in self.actor.named_parameters():
       if name == "pe" and not self.cfg.used_learned_pe:
         param.requires_grad = False
-      param.requires_grad = True
+      else:
+        param.requires_grad = True
 
     self.original_actor.eval()
     for param in self.original_actor.parameters():
