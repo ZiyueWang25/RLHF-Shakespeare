@@ -23,6 +23,7 @@ class Config:
 
   ppo_B = 128
   ppo_T = 64
+  ppo_reward_normalization = True
   ppo_beta = 0.1
   ppo_total_steps = 40
   ppo_noptepochs = 4
