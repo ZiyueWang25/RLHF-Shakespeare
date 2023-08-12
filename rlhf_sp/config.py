@@ -6,12 +6,12 @@ class Config:
   d_model = 512
   d_ff = 2048
   h = 8
-  dropout = 0.1
+  dropout = 0.2
   epochs = 15
-  label_smoothing = 0
-  used_learned_pe = True
+  label_smoothing = .0
+  used_learned_pe = False
   lr = 2e-4
-  lr_mul = .25
+  lr_mul = .3
   use_wandb: bool = False
   wandb_project_name: str = "RLHF_SP"
 

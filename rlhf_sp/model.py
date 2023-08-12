@@ -295,7 +295,8 @@ class PPOAgent(nn.Module):
       self.step()
 
   def get_batches(self):
-    # normalize rewards
+    if not self.cfg.ppo_reward_normalization:
+      return self.rb.get_batches()
     batches = self.rb.get_batches()
     all_rewards = torch.cat(tuple(b.rewards for b in batches))
     m, s = all_rewards.mean(), all_rewards.std()
