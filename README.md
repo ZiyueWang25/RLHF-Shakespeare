@@ -10,9 +10,11 @@ To reproduce, please run Colab [here](https://colab.research.google.com/drive/1Y
 I selected the PPO $\beta$ and learning rate by doing geometric scanning on them. For LR, among 1e-6, 1e-5 and 1e-4, the best is 1e-5, and from the [report](https://wandb.ai/vincentwang25/RLHF_SP/reports/PPO-Train-with-different-learning-rate--Vmlldzo1MDg1MjQy), we can see that compared to other LR,  it has a decent `avg_reward` and reasonable `clipfrac`. The divergence from the original model is not too high. And the train loss looks stable. For PPO $\beta$, among 0.02, 0.1, 0.2 and 0.4, the best is 0.1, and from the [report](https://api.wandb.ai/links/vincentwang25/x3o80roa), we can see that, besides the reason mentioned in LR, $\beta$ 0.1 can offer a wide range of `avg_reward` and KL between the ppo model and pretrained model for investigation purpose.
 
 Difference LR scanning result:
+
 ![](https://i.ibb.co/MDdkVyL/lr.png)
 
 Different $\beta$ scanning result:
+
 ![](https://i.ibb.co/NtNHK0X/beta.png)
 
 # Reward Model Training
@@ -23,7 +25,7 @@ To train an reward model, we need samples and labels. Since the pretrained model
 
 # Pretraining
 
-A small decoder-only transformer on William Shakespeare Corpus. I followed the exercise requirements to use customized tokenizer instead of BPE. Size of Train vs Valid is 90:10. Train has 1.78m tokens and valid has 198k tokens. I trained it with 15 epochs with early stop, using AttentionScheduler with `lr_mul=0.3`. The best validation loss is obtained from epoch 6. Training result:
+A small decoder-only (56 million parameters) transformer on William Shakespeare Corpus. I followed the exercise requirements to use customized tokenizer instead of BPE. Size of Train vs Valid is 90:10. Train has 1.78m tokens and valid has 198k tokens. I trained it with 15 epochs with early stop, using AttentionScheduler with `lr_mul=0.3`. The best validation loss is obtained from epoch 6. Training result:
 
 ![](https://i.ibb.co/1ZdsFvQ/2023-08-10-07-34.png)
 
